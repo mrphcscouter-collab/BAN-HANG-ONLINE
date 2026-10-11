@@ -1300,8 +1300,7 @@ async function gFind(){
 }
 const gMeta=async id=>(await gFetch(`https://www.googleapis.com/drive/v3/files/${id}?fields=id,version,modifiedTime,trashed`)).json();
 const gDown=async id=>(await gFetch(`https://www.googleapis.com/drive/v3/files/${id}?alt=media`)).json();
-async function gUp(id,data){
-  const body=JSON.stringify(data);
+async function gUp(id,body){
   if(id){
     const r=await gFetch(`https://www.googleapis.com/upload/drive/v3/files/${id}?uploadType=media&fields=id,version`,{method:'PATCH',headers:{'Content-Type':'application/json'},body});
     return r.json();
@@ -1312,8 +1311,9 @@ async function gUp(id,data){
   return r.json();
 }
 async function gPush(id){
-  const seq=gSeq,r=await gUp(id,db);
+  const seq=gSeq,body=JSON.stringify(db),r=await gUp(id,body);
   LS('bh_gfid',r.id);LS('bh_gver',String(r.version));
+  if(idb)await idbPut('base',JSON.parse(body)).catch(()=>{}); /* bản gốc để gộp ở lần sau */
   if(seq===gSeq)LS('bh_gdirty','0');
 }
 function gApply(d){
@@ -1330,7 +1330,97 @@ function gApply(d){
 }
 async function gPullTo(id){
   const m=await gMeta(id),d=await gDown(id);
-  gApply(d);LS('bh_gfid',id);LS('bh_gver',String(m.version));LS('bh_gdirty','0');gSeq++;
+  gApply(d);if(idb)await idbPut('base',db).catch(()=>{});LS('bh_gfid',id);LS('bh_gver',String(m.version));LS('bh_gdirty','0');gSeq++;
+}
+
+/*MERGE_START*/
+const jeq=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+const idbPut=(k,v)=>new Promise((ok,no)=>{const tx=idb.transaction('kv','readwrite');tx.objectStore('kv').put(v,k);tx.oncomplete=ok;tx.onerror=()=>no(tx.error)});
+function normObj(o){const k=db;db=o;try{norm()}finally{db=k}return o}
+const GCOLS=[['products',x=>x.id],['customers',x=>x.id],['suppliers',x=>x.id],['whs',x=>x.id],['locs',x=>x.id],['attrs',x=>x.id],['staff',x=>x.id],['expenses',x=>x.id],['counts',x=>x.id],['moves',x=>x.id],['invoices',x=>x.no],['imports',x=>x.no],['returns',x=>x.no],['xfers',x=>x.no],['pays',x=>x.time+'|'+x.cid+'|'+x.amt]];
+const GSEQ=['seq','seqPN','seqTH','seqKK','seqCK'];
+/* gộp 1 bản ghi: tồn kho và công nợ cộng dồn chênh lệch, các trường khác lấy bên có thay đổi (cùng sửa một trường thì lấy máy này) */
+function gRec(b,l,r){
+  const o={};
+  new Set([...Object.keys(l),...Object.keys(r)]).forEach(k=>{
+    let v;
+    if(k==='stock'||k==='debt')v=rd((r[k]||0)+(l[k]||0)-(b[k]||0));
+    else if(k==='bal'){v={};const B=b.bal||{},L=l.bal||{},R=r.bal||{};new Set([...Object.keys(L),...Object.keys(R)]).forEach(x=>{const n=rd((R[x]||0)+(L[x]||0)-(B[x]||0));if(n)v[x]=n})}
+    else v=jeq(l[k],b[k])?r[k]:l[k];
+    if(v!==undefined)o[k]=v;
+  });
+  return o;
+}
+/* phiếu do máy này lập trùng số với phiếu máy kia lập: đổi số phiếu của máy này, sửa các tham chiếu */
+function gRenum(B,L,R){
+  const map={};
+  [['invoices','seq'],['imports','seqPN'],['returns','seqTH'],['xfers','seqCK'],['counts','seqKK']].forEach(([c,sf])=>{
+    const bn=new Set(B[c].map(x=>x.no)),rn=new Set(R[c].map(x=>x.no)),used=new Set([...L[c].map(x=>x.no),...rn]);
+    let seq=Math.max(L[sf]||1,R[sf]||1);
+    L[c].filter(x=>!bn.has(x.no)&&rn.has(x.no)).sort((a,b)=>a.time-b.time).forEach(x=>{
+      const pre=x.no.replace(/\d+$/,'');let n;
+      do{n=pre+String(seq++).padStart(4,'0')}while(used.has(n));
+      used.add(n);map[x.no]=n;x.no=n;
+    });
+    L[sf]=Math.max(seq,L[sf]||1);
+  });
+  if(Object.keys(map).length){
+    L.moves.forEach(m=>{if(map[m.ref])m.ref=map[m.ref];if(m.note)m.note=m.note.replace(/[A-Za-z]{1,6}\d{4,}/g,s=>map[s]||s)});
+    L.returns.forEach(r=>{if(map[r.inv])r.inv=map[r.inv]});
+  }
+  return map;
+}
+let gRenMap={};
+function gMerge(B,L,R){
+  gRenMap=gRenum(B,L,R);
+  const M={},cn=GCOLS.map(c=>c[0]);
+  new Set([...Object.keys(L),...Object.keys(R)]).forEach(k=>{
+    if(cn.includes(k))return;
+    let v;
+    if(GSEQ.includes(k))v=Math.max(L[k]||1,R[k]||1);
+    else if(k==='cats'){const bs=new Set(B.cats||[]),ls=new Set(L.cats||[]),rs=new Set(R.cats||[]);v=[...new Set([...(R.cats||[]),...(L.cats||[])])].filter(x=>!(bs.has(x)&&(!ls.has(x)||!rs.has(x))))}
+    else v=jeq(L[k],B[k])?R[k]:L[k];
+    if(v!==undefined)M[k]=v;
+  });
+  GCOLS.forEach(([c,kf])=>{
+    const idx=a=>{const m=new Map();(a||[]).forEach(x=>m.set(kf(x),x));return m};
+    const b=idx(B[c]),l=idx(L[c]),r=idx(R[c]),out=[];
+    new Set([...r.keys(),...l.keys()]).forEach(k=>{
+      const bv=b.get(k),lv=l.get(k),rv=r.get(k);let v=null;
+      if(bv===undefined)v=rv!==undefined?rv:lv;
+      else if(lv&&rv)v=gRec(bv,lv,rv);
+      else if(rv)v=jeq(rv,bv)?null:rv;      /* máy này xóa, máy kia không đụng tới -> xóa */
+      else if(lv)v=jeq(lv,bv)?null:lv;
+      if(v)out.push(v);
+    });
+    M[c]=out;
+  });
+  const pid=new Set(M.products.map(p=>p.id));
+  M.moves=M.moves.filter(m=>pid.has(m.pid));
+  ['invoices','imports','returns','xfers','counts','moves','pays','expenses'].forEach(c=>M[c].sort((a,b)=>(b.time||0)-(a.time||0)));
+  M.ver=5;
+  return M;
+}
+/*MERGE_END*/
+async function gMergePush(id,base){
+  for(let t=0;t<3;t++){
+    flush();
+    const m=await gMeta(id),rem=await gDown(id);
+    if(!rem||!rem.products||!rem.invoices)throw new Error('File trên Drive không đúng định dạng dữ liệu bán hàng.');
+    normObj(rem);
+    const copy=o=>JSON.parse(JSON.stringify(o)),remC=copy(rem);
+    const M=gMerge(normObj(copy(base)),copy(db),rem);
+    if(idb)await idbPut('premerge',db).catch(()=>{});
+    gApply(M);LS('bh_gver',String(m.version));gSeq++;LS('bh_gdirty','1');
+    const m2=await gMeta(id);
+    if(m2.version!==m.version){base=remC;continue} /* máy khác vừa đẩy thêm: gộp lại */
+    await gPush(id);
+    const ren=Object.entries(gRenMap);
+    if(ren.length)alert('Hai máy cùng lập phiếu trùng số. Phiếu lập trên máy này đã được tự đổi số:\n'+ren.map(([a,b])=>a+' → '+b).join('\n')+'\n\nNếu đã in phiếu cũ cho khách, hãy lưu ý số mới.');
+    else toast('Đã tự động gộp dữ liệu từ máy khác');
+    return;
+  }
+  throw new Error('Dữ liệu trên Drive thay đổi liên tục, hãy thử đồng bộ lại.');
 }
 async function gSync(o={}){
   if(gBusy||!gOn())return;
@@ -1351,6 +1441,10 @@ async function gSync(o={}){
     }else{
       const dirty=gDirtyF();
       let act=o.force||(meta.version===base?(dirty?'push':'none'):(dirty?'conflict':'pull'));
+      if(act==='conflict'){
+        const bs=idb?await idbGet('base').catch(()=>null):null;
+        if(bs&&bs.products){await gMergePush(id,bs);act='done'}
+      }
       if(act==='conflict'){
         act=confirm('Dữ liệu trên Google Drive đã được thay đổi từ máy khác, trong khi máy này cũng có thay đổi chưa đồng bộ.\n\nOK = lấy dữ liệu từ Drive (thay đổi chưa đồng bộ của máy này bị bỏ).\nHủy = giữ dữ liệu máy này và ghi đè lên Drive.\n\nBản bị bỏ sẽ được tự tải về dưới dạng file sao lưu.')?'pull':'push';
         if(act==='pull')await dl('sao-luu-may-nay-'+stamp()+'.json',JSON.stringify(db),'application/json');
@@ -1406,7 +1500,7 @@ function gBtn(){if(!gCid()||!gOn())return go('settings');gSync({interactive:true
 function syncCard(){
   const on=gOn();
   return `<div class="card"><h2>Đồng bộ Google Drive</h2>
-  <p><small>Dữ liệu được lưu thành file <b>${GFILE}</b> trong Google Drive của bạn và tự đồng bộ giữa các điện thoại (kiểm tra mỗi 30 giây, đẩy lên ngay sau mỗi thay đổi). Mất mạng vẫn bán hàng bình thường, có mạng lại sẽ tự đồng bộ. Phiên đăng nhập Google hết hạn sau khoảng 1 giờ; khi nút ☁ trên đầu trang chuyển đỏ, bấm vào để đăng nhập lại.</small></p>
+  <p><small>Dữ liệu được lưu thành file <b>${GFILE}</b> trong Google Drive của bạn và tự đồng bộ giữa các điện thoại (kiểm tra mỗi 30 giây, đẩy lên ngay sau mỗi thay đổi). Nếu hai máy cùng sửa khi chưa kịp đồng bộ, phần mềm tự gộp: cộng dồn tồn kho, công nợ, thêm đủ hóa đơn và phiếu của cả hai máy (số phiếu trùng sẽ được tự đổi số). Mất mạng vẫn bán hàng bình thường, có mạng lại sẽ tự đồng bộ. Phiên đăng nhập Google hết hạn sau khoảng 1 giờ; khi nút ☁ trên đầu trang chuyển đỏ, bấm vào để đăng nhập lại.</small></p>
   <label>OAuth Client ID<input id="gcid" value="${esc(gCid())}" placeholder="xxxxxxxx.apps.googleusercontent.com" ${on?'disabled':''} autocomplete="off"></label>
   <div class="tools">${on?'<button class="pri" data-gsync>Đồng bộ ngay</button><button class="ghost" data-gpull>Tải lại từ Drive</button><button class="ghost" data-gpush>Ghi đè Drive bằng dữ liệu máy này</button><button class="ghost danger" data-gdisc>Ngắt kết nối</button>':'<button class="pri" data-gconnect>Kết nối Google Drive</button>'}</div>
   <p id="gstat"><b>Trạng thái:</b> ${esc(gStatusText())}</p>
