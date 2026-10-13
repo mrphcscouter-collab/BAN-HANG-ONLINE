@@ -1054,7 +1054,7 @@ function impView(){
   <div class="row big"><span>Tổng tiền nhập</span><span id="itot"></span></div>
   <div class="act"><button class="ghost" data-iclear>Xóa phiếu</button><button class="pri" data-isave>${imp.edit?'Lưu thay đổi phiếu':'Lưu phiếu nhập'}</button></div></div>
   <div class="card"><div class="tools" style="justify-content:space-between;align-items:center;margin-bottom:10px"><h2 style="margin:0">Lịch sử nhập hàng (${L.length})</h2>${paperSel()}<select id="ifl" style="width:auto"><option value="">Tất cả nhà cung cấp</option>${db.suppliers.map(x=>`<option value="${x.id}" ${x.id===impF?'selected':''}>${esc(x.name)}</option>`).join('')}</select></div>
-  <table><tr><th>Số phiếu</th><th>Thời gian</th><th>Nhà cung cấp</th><th>Hàng hóa</th><th class="n">Tổng tiền</th><th></th></tr>${L.map(x=>`<tr class="${x.void?'void':''}"><td>${x.no}${x.void?' <span class="tag">Đã hủy</span>':''}</td><td>${fmtT(x.time)}</td><td>${esc(x.sname||'—')}<br><small>${esc(whName(x.wid||db.defWh))}${x.lid?' / '+esc(locName(x.lid)):''}</small></td><td>${esc(x.items.map(i=>i.name+' ×'+i.qty+' ('+money(i.cost)+')').join(', '))}${x.note?'<br><small>'+esc(x.note)+'</small>':''}</td><td class="n">${money(x.total)}${x.edited?'<br><small>đã sửa</small>':''}</td><td class="n"><button class="ghost" data-iprint="${x.no}">In</button>${x.void?'':`<button class="ghost" data-iedit="${x.no}">Sửa</button><button class="ghost danger" data-ivoid="${x.no}">Hủy</button>`}</td></tr>`).join('')||'<tr><td colspan="6" class="empty">Chưa có phiếu nhập nào.</td></tr>'}</table></div>`;
+  <table><tr><th>Số phiếu</th><th>Thời gian</th><th>Nhà cung cấp</th><th>Hàng hóa</th><th class="n">Tổng tiền</th><th></th></tr>${L.map(x=>`<tr class="${x.void?'void':''}"><td>${x.no}${x.void?' <span class="tag">Đã hủy</span>':''}</td><td>${fmtT(x.time)}</td><td>${esc(x.sname||'—')}<br><small>${esc(whName(x.wid||db.defWh))}${x.lid?' / '+esc(locName(x.lid)):''}</small></td><td>${esc(x.items.map(i=>i.name+' ×'+i.qty+' ('+money(i.cost)+')').join(', '))}${x.note?'<br><small>'+esc(x.note)+'</small>':''}</td><td class="n">${money(x.total)}${x.edited?'<br><small>đã sửa</small>':''}</td><td class="n"><button class="ghost" data-iprint="${x.no}">In</button>${x.void?'':`<button class="ghost" data-iedit="${x.no}">Sửa</button><button class="ghost danger" data-ivoid="${x.no}">Hủy</button>`}<button class="ghost danger" data-idel="${x.no}">Xóa hẳn</button></td></tr>`).join('')||'<tr><td colspan="6" class="empty">Chưa có phiếu nhập nào.</td></tr>'}</table></div>`;
   $('#isup').value=imp.sid;$('#inote').value=imp.note;
   $('#isup').onchange=e=>{imp.sid=e.target.value};$('#iwh').onchange=e=>{imp.wid=e.target.value;imp.lid='';impView()};$('#ilc').onchange=e=>{imp.lid=e.target.value};$('#inote').oninput=e=>{imp.note=e.target.value};$('#itime').onchange=e=>{imp.time=e.target.value};
   $('#ipr').onchange=addImp;$('#ifl').onchange=e=>{impF=e.target.value;impView()};
@@ -1106,6 +1106,18 @@ function voidImport(no){
   if(!confirm(`Hủy phiếu nhập ${no}? Hàng của phiếu được trừ khỏi kho. Phiếu vẫn được giữ trong lịch sử với trạng thái Đã hủy.\n\nLưu ý: giá vốn bình quân của sản phẩm đã được cập nhật lúc nhập sẽ không tự tính lại; nếu cần hãy chỉnh giá vốn ở thẻ Sản phẩm.`))return;
   x.items.forEach(it=>{const p=prod(it.id);if(p){p.stock=rd(p.stock-it.qty);mv(p,'Hủy phiếu nhập',-it.qty,x.sname||'',x.no,{alloc:[[bk(w,l),-it.qty]]})}});
   x.void=true;x.voidTime=Date.now();save();impView();toast('Đã hủy phiếu nhập '+no);
+}
+
+function delImport(no){
+  const x=db.imports.find(z=>z.no===no);if(!x)return;
+  const w=x.wid||db.defWh,l=x.lid||'';
+  if(!x.void)for(const it of x.items){const p=prod(it.id);if(!p)continue;
+    if(!db.allowNeg&&(balOf(p,w,l)-it.qty<0||p.stock-it.qty<0))return alert(`Không xóa được: "${p.name}" đã được bán hoặc chuyển đi nên tồn kho không đủ để trừ lại phiếu nhập này.`)}
+  if(!confirm(`XÓA HẲN phiếu nhập ${no}?\n\n${x.void?'Phiếu đã hủy trước đó, kho không thay đổi thêm.':'Hàng của phiếu sẽ được trừ khỏi kho.'}\nPhiếu biến mất khỏi lịch sử và không khôi phục được (các dòng trong sổ kho vẫn được giữ). Giá vốn bình quân không tự tính lại.\n\nBạn chắc chắn muốn xóa?`))return;
+  if(!x.void)x.items.forEach(it=>{const p=prod(it.id);if(p){p.stock=rd(p.stock-it.qty);mv(p,'Xóa phiếu nhập',-it.qty,x.sname||'',x.no,{alloc:[[bk(w,l),-it.qty]]})}});
+  db.imports=db.imports.filter(z=>z!==x);
+  if(imp.edit===no)imp={sid:'',note:'',lines:[]};
+  save();impView();toast('Đã xóa phiếu nhập '+no);
 }
 
 /* ---------- Trả hàng ---------- */
@@ -1585,6 +1597,7 @@ document.addEventListener('click',e=>{
   else if(d.iprint)printImport(d.iprint);
   else if(d.iedit)editImport(d.iedit);
   else if(d.ivoid)voidImport(d.ivoid);
+  else if(d.idel)delImport(d.idel);
   else if('iedcancel' in d){imp={sid:'',note:'',lines:[]};impView()}
   else if(d.rprint)printReturn(d.rprint);
   else if(d.redit)editRet(d.redit);
