@@ -497,6 +497,17 @@ document.addEventListener('keydown',e=>{
 
 /* ---------- Sản phẩm ---------- */
 let pSearch='',pSt='',ipv=null,cloneFrom=null;
+function delProd(id){
+  const p=prod(id);if(!p)return;
+  const ni=db.invoices.filter(v=>v.items.some(i=>i.id===id)).length,np=db.imports.filter(v=>v.items.some(i=>i.id===id)).length,nr=db.returns.filter(v=>v.items.some(i=>i.id===id)).length,st=rd(p.stock||0);
+  const used=ni+np+nr>0;
+  if(!confirm(`XÓA VĨNH VIỄN sản phẩm "${p.name}"?\n\n`+(st?`Tồn kho hiện tại: ${st} ${p.unit} sẽ biến mất khỏi kho.\n`:'')+(used?`Sản phẩm đang có trong ${ni} hóa đơn, ${np} phiếu nhập, ${nr} phiếu trả. Các phiếu cũ vẫn được giữ nguyên (doanh thu, báo cáo không đổi) nhưng sẽ không sửa được, và không hủy được nếu cần trả hàng về kho.\n`:'')+`Toàn bộ sổ kho của sản phẩm này cũng bị xóa.\nKhông thể khôi phục. Bạn chắc chắn muốn xóa?`))return;
+  db.products=db.products.filter(x=>x!==p);db.moves=db.moves.filter(m=>m.pid!==id);
+  orders.forEach(o=>{o.lines=o.lines.filter(x=>x.id!==id)});
+  imp.lines=(imp.lines||[]).filter(x=>x.id!==id);xf.lines=xf.lines.filter(x=>x.id!==id);
+  db.counts.forEach(c=>{if(c.status==='draft'&&c.lines)c.lines=c.lines.filter(x=>x.id!==id)});
+  save();products();toast('Đã xóa sản phẩm '+p.name);
+}
 const usedP=p=>db.invoices.some(v=>v.items.some(i=>i.id===p.id))||db.imports.some(v=>v.items.some(i=>i.id===p.id))||db.moves.some(m=>m.pid===p.id&&m.type!=='Tồn đầu kỳ');
 function products(){
   const e=editing?prod(editing):null,cs=!e&&cloneFrom?prod(cloneFrom):null;
@@ -533,7 +544,7 @@ function products(){
 function drawPL(){
   const k=nz(pSearch),L=db.products.filter(p=>inCat(p,fc)&&attrOK(p)&&(!k||nz(ptext(p)).includes(k))&&stOK(p,pSt)),g=pager('pl',L.length);
   $('#plist').innerHTML=`<table><tr><th>Sản phẩm</th><th>Danh mục</th><th>ĐVT</th><th class="n">Giá vốn</th><th class="n">Giá lẻ</th><th class="n">Giá thợ</th><th class="n">Tồn</th><th></th></tr>
-  ${L.slice(g.from,g.from+50).map(p=>`<tr><td>${esc(p.name)}${p.status==='off'?' <span class="tag">Ngừng bán</span>':''}<br><small>${esc([p.code,p.barcode,pdesc(p)].filter(Boolean).join(', '))}</small></td><td>${esc(p.cat||'—')}</td><td>${esc(p.unit)}${(p.units||[]).length?'<br><small>'+esc(unitsTxt(p))+'</small>':''}</td><td class="n">${money(p.cost)}</td><td class="n">${money(p.price)}</td><td class="n">${p.wprice?money(p.wprice):'—'}</td><td class="n ${p.stock<=(p.min||5)?'low':''}">${rd(p.stock)}</td><td class="n"><button class="ghost" data-edit="${p.id}">Sửa</button><button class="ghost" data-clone="${p.id}">Sao chép</button><button class="ghost" data-pstat="${p.id}">${p.status==='off'?'Bán lại':'Ngừng bán'}</button>${usedP(p)?'':`<button class="ghost danger" data-delprod="${p.id}">Xóa</button>`}</td></tr>`).join('')||'<tr><td colspan="8" class="empty">Không có sản phẩm phù hợp. Điền thông tin ở trên rồi bấm Thêm, hoặc nhập từ file CSV.</td></tr>'}</table>${g.html}`;
+  ${L.slice(g.from,g.from+50).map(p=>`<tr><td>${esc(p.name)}${p.status==='off'?' <span class="tag">Ngừng bán</span>':''}<br><small>${esc([p.code,p.barcode,pdesc(p)].filter(Boolean).join(', '))}</small></td><td>${esc(p.cat||'—')}</td><td>${esc(p.unit)}${(p.units||[]).length?'<br><small>'+esc(unitsTxt(p))+'</small>':''}</td><td class="n">${money(p.cost)}</td><td class="n">${money(p.price)}</td><td class="n">${p.wprice?money(p.wprice):'—'}</td><td class="n ${p.stock<=(p.min||5)?'low':''}">${rd(p.stock)}</td><td class="n"><button class="ghost" data-edit="${p.id}">Sửa</button><button class="ghost" data-clone="${p.id}">Sao chép</button><button class="ghost" data-pstat="${p.id}">${p.status==='off'?'Bán lại':'Ngừng bán'}</button><button class="ghost danger" data-delprod="${p.id}">${usedP(p)?'Xóa vĩnh viễn':'Xóa'}</button></td></tr>`).join('')||'<tr><td colspan="8" class="empty">Không có sản phẩm phù hợp. Điền thông tin ở trên rồi bấm Thêm, hoặc nhập từ file CSV.</td></tr>'}</table>${g.html}`;
   $('#pcnt').textContent=L.length;
 }
 function saveProd(next){
@@ -1585,7 +1596,7 @@ document.addEventListener('click',e=>{
   else if('clonecancel' in d){cloneFrom=null;products()}
   else if('saveprodnext' in d)saveProd(true)
   else if('canceledit' in d){editing=null;products()}
-  else if(d.delprod){const p=prod(d.delprod);if(confirm(`Xóa sản phẩm "${p.name}"? Hóa đơn cũ vẫn được giữ nguyên.`)){db.products=db.products.filter(x=>x!==p);db.moves=db.moves.filter(m=>m.pid!==p.id);orders.forEach(o=>o.lines=o.lines.filter(x=>x.id!==p.id));save();products()}}
+  else if(d.delprod)delProd(d.delprod);
   else if(d.print)printInv(db.invoices.find(v=>v.no===d.print));
   else if(d.void)voidInv(d.void);
   else if('addcat' in d)addCat();
