@@ -288,7 +288,7 @@ const ensureCat=pa=>{let cur='';pa.split('>').map(x=>x.trim()).filter(Boolean).s
 let af={},uRows=[];
 const prod=id=>db.products.find(p=>p.id===id);
 
-let tab='sell',q='',editing=null,editC=null,cat='',fc='',orders=[],cur=0,orderSeq=0,hi=0;
+let pAddOpen=false,tab='sell',q='',editing=null,editC=null,cat='',fc='',orders=[],cur=0,orderSeq=0,hi=0;
 
 function go(t){
   tab=t;$('#shopname').textContent=db.shop;
@@ -511,7 +511,11 @@ function delProd(id){
 const usedP=p=>db.invoices.some(v=>v.items.some(i=>i.id===p.id))||db.imports.some(v=>v.items.some(i=>i.id===p.id))||db.moves.some(m=>m.pid===p.id&&m.type!=='Tồn đầu kỳ');
 function products(){
   const e=editing?prod(editing):null,cs=!e&&cloneFrom?prod(cloneFrom):null;
-  $('#main').innerHTML=`<div class="card"><h2>${e?'Sửa sản phẩm':cs?'Sao chép sản phẩm <small>(từ: '+esc(cs.name)+')</small> <button class="ghost" data-clonecancel>Hủy sao chép</button>':'Thêm sản phẩm'}</h2><div class="form" style="grid-template-columns:repeat(4,1fr)">
+  if(e||cs||ipv)pAddOpen=true;const addOpen=pAddOpen;
+  $('#main').innerHTML=`  <div class="card"><div class="tools" style="justify-content:space-between;align-items:center;margin-bottom:10px"><h2 style="margin:0">Danh mục hàng hóa (<span id="pcnt"></span>)</h2><button class="pri" id="addtog" data-toggleadd>${addOpen?'Đóng':'+ Thêm sản phẩm'}</button></div>
+   <div class="fb"><input id="psr" placeholder="Tìm mã, barcode, tên, thương hiệu, quy cách (gõ không dấu cũng được)" value="${esc(pSearch)}"><select id="fc"><option value="">Mọi danh mục</option>${catOpts(fc)}</select><select id="pst">${[['','Mọi trạng thái'],['in','Còn hàng'],['low','Sắp hết'],['out','Hết hàng'],['neg','Tồn âm'],['off','Ngừng bán']].map(([v,l])=>`<option value="${v}" ${v===pSt?'selected':''}>${l}</option>`).join('')}</select><button class="ghost" data-csvimp>Nhập từ file Excel</button><button class="ghost" data-csvtpl>Tải file Excel mẫu</button><button class="ghost" data-xlexp>Xuất danh sách ra Excel</button></div>
+   <small>Nhập hàng loạt: bấm "Tải file Excel mẫu", điền dữ liệu rồi chọn "Nhập từ file Excel" (nhận cả file CSV). Dòng có SKU đã tồn tại sẽ cập nhật sản phẩm đó. "Xuất danh sách ra Excel" giúp sửa giá hàng loạt rồi nhập lại.</small><div class="fb" id="aflt"></div><div id="plist"></div></div>
+  <div id="padd" ${addOpen?'':'hidden'}><div class="card"><h2>${e?'Sửa sản phẩm':cs?'Sao chép sản phẩm <small>(từ: '+esc(cs.name)+')</small> <button class="ghost" data-clonecancel>Hủy sao chép</button>':'Thêm sản phẩm'}</h2><div class="form" style="grid-template-columns:repeat(4,1fr)">
    <label style="grid-column:span 2">Tên sản phẩm<input id="pn"></label><label>Mã hàng (SKU)<input id="pc"></label><label>Barcode<input id="pbc"></label>
    <label>Danh mục<select id="pg">${catOpts('')}</select></label>
    <label>Thương hiệu<input id="pb" placeholder="Viglacera, Dulux, Inax…"></label><label>Quy cách / màu<input id="pq" placeholder="60x60 cm, bóng kiếng…"></label>
@@ -530,9 +534,7 @@ function products(){
   <div class="card"><h2>Thuộc tính hàng hóa</h2>
    <div class="form" style="grid-template-columns:1fr 1fr 2fr auto;margin-bottom:12px"><label>Tên thuộc tính<input id="an" placeholder="Kích thước, Màu, Đường kính…"></label><label>Áp dụng cho danh mục<select id="ac"><option value="">Tất cả danh mục</option>${catOpts()}</select></label><label>Giá trị gợi ý (cách nhau bằng dấu phẩy)<input id="av" placeholder="60x60, 80x80"></label><button class="pri" data-aadd>Thêm thuộc tính</button></div>
    <table><tr><th>Thuộc tính</th><th>Áp dụng cho</th><th>Giá trị gợi ý</th><th class="n">Sản phẩm đang dùng</th><th></th></tr>${db.attrs.map(a=>`<tr><td>${esc(a.name)}</td><td>${a.cat?esc(a.cat):'Tất cả danh mục'}</td><td>${esc(a.values.join(', '))}</td><td class="n">${db.products.filter(p=>(p.attrs||{})[a.id]).length}</td><td class="n"><button class="ghost" data-aval="${a.id}">Giá trị</button><button class="ghost" data-aren="${a.id}">Đổi tên</button><button class="ghost danger" data-adel="${a.id}">Xóa</button></td></tr>`).join('')||'<tr><td colspan="5" class="empty">Chưa có thuộc tính.</td></tr>'}</table><small>Thuộc tính áp dụng cho cả danh mục con. Khi lọc theo một danh mục, bảng sản phẩm hiện thêm ô lọc theo từng thuộc tính.</small></div>
-  <div class="card"><h2>Danh mục hàng hóa (<span id="pcnt"></span>)</h2>
-   <div class="fb"><input id="psr" placeholder="Tìm mã, barcode, tên, thương hiệu, quy cách (gõ không dấu cũng được)" value="${esc(pSearch)}"><select id="fc"><option value="">Mọi danh mục</option>${catOpts(fc)}</select><select id="pst">${[['','Mọi trạng thái'],['in','Còn hàng'],['low','Sắp hết'],['out','Hết hàng'],['neg','Tồn âm'],['off','Ngừng bán']].map(([v,l])=>`<option value="${v}" ${v===pSt?'selected':''}>${l}</option>`).join('')}</select><button class="ghost" data-csvimp>Nhập từ file Excel</button><button class="ghost" data-csvtpl>Tải file Excel mẫu</button><button class="ghost" data-xlexp>Xuất danh sách ra Excel</button></div>
-   <small>Nhập hàng loạt: bấm "Tải file Excel mẫu", điền dữ liệu rồi chọn "Nhập từ file Excel" (nhận cả file CSV). Dòng có SKU đã tồn tại sẽ cập nhật sản phẩm đó. "Xuất danh sách ra Excel" giúp sửa giá hàng loạt rồi nhập lại.</small><div class="fb" id="aflt"></div><div id="plist"></div></div>`;
+  </div>`;
   $('#psr').oninput=ev=>{pSearch=ev.target.value;PG.pl=1;drawPL()};$('#fc').onchange=ev=>{fc=ev.target.value;af={};PG.pl=1;drawAF();drawPL()};$('#pst').onchange=ev=>{pSt=ev.target.value;PG.pl=1;drawPL()};
   $('#nc').onkeydown=ev=>{if(ev.key==='Enter')addCat()};
   const src=e||cs;
@@ -557,7 +559,7 @@ function saveProd(next){
   cloneFrom=null;
   if(e){Object.assign(e,d);const df=rd(st-e.stock);if(df){e.stock=rd(st);mv(e,'Điều chỉnh',df,'Sửa tồn trong thẻ sản phẩm')}}
   else{const x=Object.assign({id:uid(),status:'on',stock:0,created:Date.now()},d);db.products.push(x);if(next===true)cloneFrom=x.id;if(st){x.stock=rd(st);mv(x,'Tồn đầu kỳ',x.stock,'Khi tạo sản phẩm')}}
-  editing=null;save();products();toast(e?'Đã lưu thay đổi sản phẩm':'Đã thêm sản phẩm '+name);
+  editing=null;if(!cloneFrom)pAddOpen=false;save();products();toast(e?'Đã lưu thay đổi sản phẩm':'Đã thêm sản phẩm '+name);
 }
 function addCat(name){
   const v=(name||($('#nc')?$('#nc').value:'')).replace(/>/g,'').trim(),par=name?'':($('#npar')?$('#npar').value:'');
@@ -1590,12 +1592,13 @@ document.addEventListener('click',e=>{
   else if('clear' in d)clearOrder();
   else if('pay' in d)payS();
   else if('gopay' in d)$('#panel').scrollIntoView({behavior:'smooth',block:'start'});
+  else if('toggleadd' in d){pAddOpen=!pAddOpen;$('#padd').hidden=!pAddOpen;$('#addtog').textContent=pAddOpen?'Đóng':'+ Thêm sản phẩm';if(pAddOpen){$('#padd').scrollIntoView();const n=$('#pn');if(n)n.focus({preventScroll:true})}}
   else if('saveprod' in d)saveProd();
-  else if(d.edit){editing=d.edit;cloneFrom=null;products();scrollTo(0,0)}
-  else if(d.clone){editing=null;cloneFrom=d.clone;products();scrollTo(0,0)}
-  else if('clonecancel' in d){cloneFrom=null;products()}
+  else if(d.edit){editing=d.edit;cloneFrom=null;products();$('#padd').scrollIntoView()}
+  else if(d.clone){editing=null;cloneFrom=d.clone;products();$('#padd').scrollIntoView()}
+  else if('clonecancel' in d){cloneFrom=null;pAddOpen=false;products()}
   else if('saveprodnext' in d)saveProd(true)
-  else if('canceledit' in d){editing=null;products()}
+  else if('canceledit' in d){editing=null;pAddOpen=false;products()}
   else if(d.delprod)delProd(d.delprod);
   else if(d.print)printInv(db.invoices.find(v=>v.no===d.print));
   else if(d.void)voidInv(d.void);
