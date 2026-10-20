@@ -236,7 +236,7 @@ function norm(){
   db.products.forEach(p=>{if(!p.bal)p.bal={[bk(db.whs[0].id,'')]:rd(p.stock)};const t=rd(Object.values(p.bal).reduce((a,v)=>a+v,0));if(t!==rd(p.stock)){const k=bk(db.defWh,'');p.bal[k]=rd((p.bal[k]||0)+p.stock-t)}});
   db.vat=db.vat||0;db.prefix=db.prefix||'HD';db.seqPN=db.seqPN||1;db.seqTH=db.seqTH||1;db.invoices.forEach(v=>{v.void=!!v.void});
   if(!db.attrs)db.attrs=[{id:'a_size',name:'Kích thước',cat:'Gạch men',values:['30x60','40x40','60x60','80x80','60x120']},{id:'a_color',name:'Màu sắc',cat:'',values:['Trắng','Kem','Xám','Đen','Nâu','Xanh']},{id:'a_surf',name:'Bề mặt',cat:'Gạch men',values:['Bóng kiếng','Mờ','Nhám chống trơn','Vân đá','Vân gỗ']},{id:'a_cap',name:'Dung tích',cat:'Sơn nước',values:['1L','5L','18L']},{id:'a_ptype',name:'Loại sơn',cat:'Sơn nước',values:['Nội thất','Ngoại thất','Lót','Chống thấm']}];
-  db.products.forEach(p=>{p.attrs=p.attrs||{};if(!p.units)p.units=p.box>0?[{name:p.unit==='m²'?'hộp':'thùng',per:p.box}]:[]});
+  db.products.forEach(p=>{p.attrs=p.attrs||{};p.subs=p.subs||[];if(!p.units)p.units=p.box>0?[{name:p.unit==='m²'?'hộp':'thùng',per:p.box}]:[]});
   db.ver=5;
 }
 function load(){
@@ -267,14 +267,14 @@ const money=n=>(Math.round(n)||0).toLocaleString('vi-VN')+'đ';
 const fmtT=t=>new Date(t).toLocaleString('vi-VN',{hour12:false});
 const toLocal=t=>{const d=new Date(t),p=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'T'+p(d.getHours())+':'+p(d.getMinutes())};
 const timeIn=(s,def)=>{if(!s)return{t:def};if(def&&s===toLocal(def))return{t:def};const t=new Date(s).getTime();if(isNaN(t))return{err:'Thời gian không hợp lệ.'};if(t>Date.now()+300000)return{err:'Thời gian không được ở tương lai.'};return{t}};
-const rd=n=>Math.round(n*100)/100;
+const rd=n=>Math.round(n*1e6)/1e6,rdp=n=>Math.round(n*100)/100; /* rd: số lượng (đủ chính xác cho đơn vị chiết lẻ), rdp: hiển thị 2 số lẻ */
 const pr=p=>O().tier==='w'&&p.wprice?p.wprice:p.price;
 const rd6=n=>Math.round(n*1e6)/1e6;
 /* Đơn vị cơ sở = p.unit. p.units = [{name,per}]: 1 name = per đơn vị liền trước (cấp 1 tính theo đơn vị cơ sở) */
-const urates=p=>{let r=1;const o=[{name:p.unit,rate:1}];(p.units||[]).forEach(u=>{r=rd6(r*u.per);o.push({name:u.name,rate:r})});return o};
-const fmtU=(p,q)=>{const us=urates(p).reverse();let r=rd6(q);const out=[];us.forEach((u,i)=>{if(i===us.length-1){if(rd(r)||!out.length)out.push(rd(r)+' '+u.name)}else{const n=Math.floor(r/u.rate+1e-9);if(n>0){out.push(n+' '+u.name);r=rd6(r-n*u.rate)}}});return out.join(' ')};
-const hint=(p,q)=>(p.units||[]).length?', ≈ '+fmtU(p,q):'';
-const unitsTxt=p=>(p.units||[]).map((u,i)=>'1 '+u.name+' = '+u.per+' '+(i?p.units[i-1].name:p.unit)).join('; ');
+const urates=p=>{let r=1;const o=[{name:p.unit,rate:1}];(p.units||[]).forEach(u=>{r=rd6(r*u.per);o.push({name:u.name,rate:r})});(p.subs||[]).forEach(u=>{if(u.per>0)o.push({name:u.name,rate:rd6(1/u.per)})});return o};
+const fmtU=(p,q)=>{const us=urates(p).sort((a,b)=>b.rate-a.rate);let r=rd6(q);const out=[];us.forEach((u,i)=>{if(i===us.length-1){const v=rdp(r/u.rate);if(v||!out.length)out.push(v+' '+u.name)}else{const n=Math.floor(r/u.rate+1e-9);if(n>0){out.push(n+' '+u.name);r=rd6(r-n*u.rate)}}});return out.join(' ')};
+const hint=(p,q)=>((p.units||[]).length||(p.subs||[]).length)?', ≈ '+fmtU(p,q):'';
+const unitsTxt=p=>[...(p.units||[]).map((u,i)=>'1 '+u.name+' = '+u.per+' '+(i?p.units[i-1].name:p.unit)),...(p.subs||[]).filter(u=>u.per>0).map(u=>'1 '+p.unit+' = '+u.per+' '+u.name)].join('; ');
 const stepOf=(i,p)=>(i.u||0)>0?urates(p)[i.u].rate:(p.box||1);
 const lineSub=(i,p)=>((i.u||0)>0?'= '+rd(i.qty)+' '+p.unit+' ':'')+hint(p,i.qty).slice(2);
 const attrVals=p=>Object.values(p.attrs||{});
@@ -287,7 +287,7 @@ const inCat=(p,c)=>!c||p.cat===c||String(p.cat||'').startsWith(c+' > ');
 function catSorted(){const out=[],walk=pa=>db.cats.filter(c=>pa?c.startsWith(pa+' > ')&&catDepth(c)===catDepth(pa)+1:catDepth(c)===0).forEach(c=>{out.push(c);walk(c)});walk('');db.cats.forEach(c=>{if(!out.includes(c))out.push(c)});return out}
 const catOpts=(sel,maxD)=>catSorted().filter(c=>maxD==null||catDepth(c)<maxD).map(c=>`<option value="${esc(c)}" ${c===sel?'selected':''}>${'\u00a0\u00a0'.repeat(catDepth(c))}${esc(catLeaf(c))}</option>`).join('');
 const ensureCat=pa=>{let cur='';pa.split('>').map(x=>x.trim()).filter(Boolean).slice(0,3).forEach(x=>{cur=cur?cur+' > '+x:x;if(!db.cats.includes(cur))db.cats.push(cur)});return cur};
-let af={},uRows=[];
+let af={},uRows=[],sRows=[];
 const prod=id=>db.products.find(p=>p.id===id);
 
 let pAddOpen=false,tab='sell',q='',editing=null,editC=null,cat='',fc='',orders=[],cur=0,orderSeq=0,hi=0;
@@ -351,7 +351,7 @@ function clearOrder(){
 }
 function drawLines(){
   const o=O(),n=o.lines.length;
-  $('#lines').innerHTML=n?`<table class="lt"><tr><th>#</th><th>Mã</th><th>Tên hàng</th><th class="n">Số lượng</th><th class="n">Đơn giá</th><th class="n">Thành tiền</th><th></th></tr>${o.lines.map((i,k)=>{const p=prod(i.id),ur=urates(p),r=(ur[i.u||0]||ur[0]).rate;return `<tr><td class="c-n">${n-k}</td><td class="c-code">${esc(p.code||'')}</td><td class="c-name"><b>${esc(p.name)}</b><br><small>${esc(pdesc(p))}</small></td><td class="n c-qty"><div class="qty"><button data-dec="${p.id}">−</button><input class="qi" type="number" step="any" min="0" data-q="${p.id}" value="${rd(i.qty/r)}"><button data-inc="${p.id}">+</button></div>${ur.length>1?`<select class="ul" data-u="${p.id}">${ur.map((u,x)=>`<option value="${x}" ${x===(i.u||0)?'selected':''}>${esc(u.name)}</option>`).join('')}</select>`:esc(p.unit)}<br><small id="h_${p.id}">${esc(lineSub(i,p))}</small></td><td class="n c-price"><input class="pi" type="number" min="0" data-p="${p.id}" value="${rd(uprice(i)*r)}"></td><td class="n amt c-amt" id="a_${p.id}">${money(uprice(i)*i.qty)}</td><td class="c-x"><button class="x" data-rm="${p.id}" title="Xóa dòng">×</button></td></tr>`}).join('')}</table>`:'<div class="emp">Chưa có mặt hàng nào. Gõ tên hoặc mã hàng ở ô tìm kiếm phía trên để thêm vào hóa đơn.</div>';
+  $('#lines').innerHTML=n?`<table class="lt"><tr><th>#</th><th>Mã</th><th>Tên hàng</th><th class="n">Số lượng</th><th class="n">Đơn giá</th><th class="n">Thành tiền</th><th></th></tr>${o.lines.map((i,k)=>{const p=prod(i.id),ur=urates(p),r=(ur[i.u||0]||ur[0]).rate;return `<tr><td class="c-n">${n-k}</td><td class="c-code">${esc(p.code||'')}</td><td class="c-name"><b>${esc(p.name)}</b><br><small>${esc(pdesc(p))}</small></td><td class="n c-qty"><div class="qty"><button data-dec="${p.id}">−</button><input class="qi" type="number" step="any" min="0" data-q="${p.id}" value="${rd(i.qty/r)}"><button data-inc="${p.id}">+</button></div>${ur.length>1?`<select class="ul" data-u="${p.id}">${ur.map((u,x)=>`<option value="${x}" ${x===(i.u||0)?'selected':''}>${esc(u.name)}</option>`).join('')}</select>`:esc(p.unit)}<br><small id="h_${p.id}">${esc(lineSub(i,p))}</small></td><td class="n c-price"><input class="pi" type="number" min="0" data-p="${p.id}" value="${rdp(uprice(i)*r)}"></td><td class="n amt c-amt" id="a_${p.id}">${money(uprice(i)*i.qty)}</td><td class="c-x"><button class="x" data-rm="${p.id}" title="Xóa dòng">×</button></td></tr>`}).join('')}</table>`:'<div class="emp">Chưa có mặt hàng nào. Gõ tên hoặc mã hàng ở ô tìm kiếm phía trên để thêm vào hóa đơn.</div>';
   const LN=n=>O().lines.find(x=>x.id===n);
   document.querySelectorAll('.qi').forEach(el=>el.oninput=()=>{const id=el.dataset.q,p=prod(id),i=LN(id),r=urates(p)[i.u||0].rate;let v=Math.max(0,+el.value||0)*r;if(v>avail(p)&&!db.allowNeg){v=avail(p);el.value=rd(v/r)}i.qty=rd(v);rowUpd(i,p)});
   document.querySelectorAll('.pi').forEach(el=>el.oninput=()=>{const id=el.dataset.p,p=prod(id),i=LN(id),r=urates(p)[i.u||0].rate;i.pr=Math.max(0,+el.value||0)/r;rowUpd(i,p)});
@@ -542,7 +542,7 @@ function products(){
   const src=e||cs;
   if(src){const v={pn:src.name,pc:e?e.code||'':'',pbc:e?e.barcode||'':'',pg:src.cat,pb:src.brand,pq:src.spec,pu:src.unit,pk:src.cost||'',pp:src.price,pw:src.wprice||'',ps:e?e.stock:'',pm:src.min||''}; /* bản sao: bỏ mã SKU, barcode và tồn kho */
     for(const k in v)$('#'+k).value=v[k]}
-  uRows=src?(src.units||[]).map(u=>({...u})):[];$('#pg').onchange=()=>drawAttrs();$('#pu').oninput=drawUnits;drawAttrs(src?src.attrs||{}:{});drawUnits();drawAF();drawPL();
+  uRows=src?(src.units||[]).map(u=>({...u})):[];sRows=src?(src.subs||[]).map(u=>({...u})):[];$('#pg').onchange=()=>drawAttrs();$('#pu').oninput=drawUnits;drawAttrs(src?src.attrs||{}:{});drawUnits();drawAF();drawPL();
   if(cs){$('#pc').focus()}
 }
 function drawPL(){
@@ -556,7 +556,8 @@ function saveProd(next){
   if(!name)return alert('Nhập tên sản phẩm.');
   if($('#pp').value==='')return alert('Nhập giá bán lẻ.');
   if(code&&db.products.some(x=>x.id!==editing&&(x.code||'').toLowerCase()===code.toLowerCase()))return alert('Mã hàng (SKU) này đã tồn tại.');
-  const d={name,code,barcode:$('#pbc').value.trim(),cat:$('#pg').value,brand:$('#pb').value.trim(),spec:$('#pq').value.trim(),unit:$('#pu').value.trim()||'cái',cost:n('pk'),price:n('pp'),wprice:n('pw'),min:n('pm'),units:uRows.filter(u=>String(u.name).trim()&&u.per>0).map(u=>({name:String(u.name).trim(),per:+u.per})),attrs:readAttrs()},st=n('ps'),e=editing?prod(editing):null;
+  const d={name,code,barcode:$('#pbc').value.trim(),cat:$('#pg').value,brand:$('#pb').value.trim(),spec:$('#pq').value.trim(),unit:$('#pu').value.trim()||'cái',cost:n('pk'),price:n('pp'),wprice:n('pw'),min:n('pm'),units:uRows.filter(u=>String(u.name).trim()&&u.per>0).map(u=>({name:String(u.name).trim(),per:+u.per})),subs:sRows.filter(u=>String(u.name).trim()&&u.per>0).map(u=>({name:String(u.name).trim(),per:+u.per})),attrs:readAttrs()},st=n('ps'),e=editing?prod(editing):null;
+  {const nm=[d.unit,...d.units.map(u=>u.name),...d.subs.map(u=>u.name)].map(x=>x.toLowerCase()),dup=nm.find((x,k)=>nm.indexOf(x)!==k);if(dup)return alert('Tên đơn vị "'+dup+'" bị trùng. Mỗi đơn vị của một sản phẩm cần có tên khác nhau.')}
   d.box=d.units[0]?d.units[0].per:0;learnAttrs(d.attrs);
   cloneFrom=null;
   if(e){Object.assign(e,d);const df=rd(st-e.stock);if(df){e.stock=rd(st);mv(e,'Điều chỉnh',df,'Sửa tồn trong thẻ sản phẩm')}}
@@ -614,8 +615,10 @@ function delAttr(id){
 }
 /* ----- Quy đổi đơn vị trong form sản phẩm ----- */
 function drawUnits(){
-  const base=($('#pu').value||'').trim()||'đơn vị cơ sở',pv=()=>unitsTxt({unit:base,units:uRows.filter(u=>String(u.name).trim()&&u.per>0)});
-  $('#punits').innerHTML=`<small>Quy đổi đơn vị (không bắt buộc). Tồn kho và giá luôn tính theo đơn vị cơ sở <b>${esc(base)}</b>; các đơn vị lớn hơn dùng để nhập hàng, bán hàng và hiển thị.</small>${uRows.map((u,i)=>`<div class="row" style="justify-content:flex-start;gap:8px;margin-top:6px"><span>1</span><input class="un" data-i="${i}" placeholder="hộp, thùng, pallet…" value="${esc(u.name)}" style="width:150px"><span>=</span><input class="up" data-i="${i}" type="number" min="0" step="any" value="${u.per||''}" style="width:110px"><b class="ub" data-i="${i}">${esc(i?uRows[i-1].name||'?':base)}</b><button class="x" data-urm="${i}" title="Xóa cấp này">×</button></div>`).join('')}${uRows.length<3?'<div style="margin-top:6px"><button class="ghost" data-uadd>+ Thêm cấp quy đổi</button></div>':''}<small id="upv">${esc(pv())}</small>`;
+  const base=($('#pu').value||'').trim()||'đơn vị cơ sở',pv=()=>unitsTxt({unit:base,units:uRows.filter(u=>String(u.name).trim()&&u.per>0),subs:sRows.filter(u=>String(u.name).trim()&&u.per>0)});
+  $('#punits').innerHTML=`<small>Quy đổi đơn vị (không bắt buộc). Tồn kho và giá luôn tính theo đơn vị cơ sở <b>${esc(base)}</b>; các đơn vị lớn hơn dùng để nhập hàng, bán hàng và hiển thị.</small>${uRows.map((u,i)=>`<div class="row" style="justify-content:flex-start;gap:8px;margin-top:6px"><span>1</span><input class="un" data-i="${i}" placeholder="hộp, thùng, pallet…" value="${esc(u.name)}" style="width:150px"><span>=</span><input class="up" data-i="${i}" type="number" min="0" step="any" value="${u.per||''}" style="width:110px"><b class="ub" data-i="${i}">${esc(i?uRows[i-1].name||'?':base)}</b><button class="x" data-urm="${i}" title="Xóa cấp này">×</button></div>`).join('')}${uRows.length<3?'<div style="margin-top:6px"><button class="ghost" data-uadd>+ Thêm cấp quy đổi</button></div>':''}<small id="upv">${esc(pv())}</small>
+  <div style="margin-top:14px;padding-top:10px;border-top:1px dashed var(--line)"><small><b>Đơn vị nhỏ hơn đơn vị cơ sở</b> (để chiết lẻ, bán lẻ). Ví dụ: 1 bao keo = 25 kí. Tồn kho vẫn tính theo <b>${esc(base)}</b>; khi bán hoặc nhập theo đơn vị nhỏ, phần mềm tự quy đổi và trừ tồn theo tỷ lệ.</small>${sRows.map((u,i)=>`<div class="row" style="justify-content:flex-start;gap:8px;margin-top:6px;flex-wrap:wrap"><span>1 <b>${esc(base)}</b> =</span><input class="sp" data-i="${i}" type="number" min="0" step="any" value="${u.per||''}" placeholder="25" style="width:100px"><input class="sn" data-i="${i}" placeholder="kí, lạng, mét…" value="${esc(u.name)}" style="width:140px"><button class="x" data-srm="${i}" title="Xóa đơn vị này">×</button></div>`).join('')}${sRows.length<2?'<div style="margin-top:6px"><button class="ghost" data-sadd>+ Thêm đơn vị nhỏ hơn</button></div>':''}</div>`;
+  document.querySelectorAll('.sp,.sn').forEach(el=>el.oninput=()=>{const r=sRows[+el.dataset.i];if(el.classList.contains('sn'))r.name=el.value;else r.per=+el.value||0;$('#upv').textContent=pv()});
   document.querySelectorAll('.un,.up').forEach(el=>el.oninput=()=>{const r=uRows[+el.dataset.i];if(el.classList.contains('un'))r.name=el.value;else r.per=+el.value||0;document.querySelectorAll('.ub').forEach(b=>{const i=+b.dataset.i;b.textContent=i?uRows[i-1].name||'?':base});$('#upv').textContent=pv()});
 }
 const CSVH=['SKU','Barcode','Tên sản phẩm','Danh mục (cha > con)','Thương hiệu','Quy cách','ĐVT cơ sở','Số ĐVT mỗi hộp/thùng (cũ)','Giá vốn','Giá bán lẻ','Giá thợ','Tồn tối thiểu','Tồn đầu kỳ','Thuộc tính (Tên=Giá trị; …)','Quy đổi (hộp=1.44; thùng=6)'];
@@ -1076,7 +1079,7 @@ function impView(){
   drawI();
 }
 function drawI(){
-  $('#ilines').innerHTML=imp.lines.length?`<table><tr><th>Mặt hàng</th><th class="n">Số lượng</th><th class="n">Giá vốn nhập</th><th class="n">Thành tiền</th><th></th></tr>${imp.lines.map((l,k)=>{const p=prod(l.id),ur=urates(p),r=(ur[l.u||0]||ur[0]).rate;return `<tr><td>${esc(p.name)}<br><small>${esc(p.unit)}, tồn ${rd(p.stock)}, giá vốn hiện tại ${money(p.cost)}</small></td><td class="n"><input class="iq pi" type="number" min="0" step="any" data-i="${k}" value="${rd(l.qty/r)}">${ur.length>1?`<select class="iu" data-i="${k}">${ur.map((u,x)=>`<option value="${x}" ${x===(l.u||0)?'selected':''}>${esc(u.name)}</option>`).join('')}</select>`:' '+esc(p.unit)}</td><td class="n"><input class="ic pi" type="number" min="0" data-i="${k}" value="${rd(l.cost*r)}"></td><td class="n" id="ia${k}">${money(l.qty*l.cost)}</td><td><button class="x" data-irm="${k}">×</button></td></tr>`}).join('')}</table>`:'<div class="emp" style="padding:24px">Chưa có dòng hàng. Gõ tên hoặc mã hàng ở ô trên rồi chọn.</div>';
+  $('#ilines').innerHTML=imp.lines.length?`<table><tr><th>Mặt hàng</th><th class="n">Số lượng</th><th class="n">Giá vốn nhập</th><th class="n">Thành tiền</th><th></th></tr>${imp.lines.map((l,k)=>{const p=prod(l.id),ur=urates(p),r=(ur[l.u||0]||ur[0]).rate;return `<tr><td>${esc(p.name)}<br><small>${esc(p.unit)}, tồn ${rd(p.stock)}, giá vốn hiện tại ${money(p.cost)}</small></td><td class="n"><input class="iq pi" type="number" min="0" step="any" data-i="${k}" value="${rd(l.qty/r)}">${ur.length>1?`<select class="iu" data-i="${k}">${ur.map((u,x)=>`<option value="${x}" ${x===(l.u||0)?'selected':''}>${esc(u.name)}</option>`).join('')}</select>`:' '+esc(p.unit)}</td><td class="n"><input class="ic pi" type="number" min="0" data-i="${k}" value="${rdp(l.cost*r)}"></td><td class="n" id="ia${k}">${money(l.qty*l.cost)}</td><td><button class="x" data-irm="${k}">×</button></td></tr>`}).join('')}</table>`:'<div class="emp" style="padding:24px">Chưa có dòng hàng. Gõ tên hoặc mã hàng ở ô trên rồi chọn.</div>';
   document.querySelectorAll('.iq,.ic').forEach(el=>el.oninput=()=>{const l=imp.lines[+el.dataset.i],r=urates(prod(l.id))[l.u||0].rate,v=Math.max(0,+el.value||0);if(el.classList.contains('iq'))l.qty=rd(v*r);else l.cost=v/r;$('#ia'+el.dataset.i).textContent=money(l.qty*l.cost);itot()});
   document.querySelectorAll('.iu').forEach(el=>el.onchange=()=>{imp.lines[+el.dataset.i].u=+el.value;drawI()});
   itot();
@@ -1624,6 +1627,8 @@ document.addEventListener('click',e=>{
   else if(d.aval)valAttr(d.aval);
   else if(d.adel)delAttr(d.adel);
   else if('uadd' in d){uRows.push({name:'',per:0});drawUnits()}
+  else if('sadd' in d){sRows.push({name:'',per:0});drawUnits()}
+  else if(d.srm){sRows.splice(+d.srm,1);drawUnits()}
   else if(d.urm){uRows.splice(+d.urm,1);drawUnits()}
   else if('xadd' in d)addX();
   else if(d.xrm){xf.lines.splice(+d.xrm,1);drawX()}
