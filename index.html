@@ -63,6 +63,7 @@ th{font-size:13px;color:var(--mute);font-weight:600}
 td.n,th.n{text-align:right}
 td button{padding:5px 10px;font-size:13px;margin-left:4px}
 .ptab td:first-child{min-width:210px}.ptab td:nth-child(2){min-width:84px}.ptab td:nth-child(3){min-width:72px}.ptab td.n,.ptab th.n{white-space:nowrap}
+.clab{display:block;font-size:13px;color:var(--mute);margin-bottom:10px}.cbox{position:relative;flex:1;min-width:0}.cbox input{width:100%}.cl{position:absolute;left:0;right:0;top:100%;z-index:40;background:#fff;border:1px solid var(--line);border-radius:6px;max-height:300px;overflow:auto;box-shadow:0 6px 18px rgba(0,0,0,.15);margin-top:2px}.cl>div{padding:10px 12px;border-bottom:1px solid var(--line);cursor:pointer}.cl>div.on,.cl>div:hover{background:#e8f4f2}.cl>.more{color:var(--mute);font-size:13px;cursor:default}.cl>.more:hover{background:#fff}
 .pact{white-space:nowrap}.pact button{min-height:34px;padding:4px 10px;margin:0 0 0 4px;white-space:nowrap}
 .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:16px}
 .stat{background:#fff;border:1px solid var(--line);border-radius:8px;padding:14px}
@@ -361,7 +362,7 @@ function drawLines(){
 function rowUpd(i,p){$('#a_'+p.id).textContent=money(uprice(i)*i.qty);$('#h_'+p.id).textContent=lineSub(i,p);upd()}
 function drawPanel(){
   const o=O();
-  $('#panel').innerHTML=`${o.edit?`<div class="cinfo" style="background:#fff3d6;border-color:#e6c36a;margin:0 0 10px"><b>Đang sửa hóa đơn ${o.edit}</b><div>Giữ nguyên số phiếu, có thể đổi thời gian lập ở ô bên dưới. Khi lưu, hàng và công nợ của bản cũ được hoàn lại rồi ghi theo nội dung mới.</div><button class="ghost" data-editcancel style="margin-top:6px">Hủy sửa</button></div>`:''}${staffSel(o)}<label>Thời gian lập phiếu${o.edit?'':' <small>(để trống = bây giờ)</small>'}<input type="datetime-local" id="otime" value="${esc(o.time||'')}" max="${toLocal(Date.now())}"></label><label>Khách hàng<div class="row" style="gap:6px"><select id="cus" style="flex:1"><option value="">Khách lẻ</option>${db.customers.map(c=>`<option value="${c.id}" ${c.id===o.cid?'selected':''}>${esc(c.name)}${c.phone?' - '+esc(c.phone):''}${c.debt?' (nợ '+money(c.debt)+')':''}</option>`).join('')}</select><button class="ghost" type="button" data-qcnew style="white-space:nowrap">+ Khách mới</button></div></label>
+  $('#panel').innerHTML=`${o.edit?`<div class="cinfo" style="background:#fff3d6;border-color:#e6c36a;margin:0 0 10px"><b>Đang sửa hóa đơn ${o.edit}</b><div>Giữ nguyên số phiếu, có thể đổi thời gian lập ở ô bên dưới. Khi lưu, hàng và công nợ của bản cũ được hoàn lại rồi ghi theo nội dung mới.</div><button class="ghost" data-editcancel style="margin-top:6px">Hủy sửa</button></div>`:''}${staffSel(o)}<label>Thời gian lập phiếu${o.edit?'':' <small>(để trống = bây giờ)</small>'}<input type="datetime-local" id="otime" value="${esc(o.time||'')}" max="${toLocal(Date.now())}"></label><div class="clab">Khách hàng<div class="row" style="gap:6px"><div class="cbox"><input id="cusq" type="search" autocomplete="off" placeholder="Khách lẻ (gõ tên hoặc SĐT để tìm khách cũ)" value="${esc(cusLab(db.customers.find(c=>c.id===o.cid)))}"><div id="cuslist" class="cl" hidden></div></div><button class="ghost" type="button" data-qcnew style="white-space:nowrap">+ Khách mới</button></div></div>
   <div id="cinfo">${cinfo(o)}</div>
   ${qcOpen?`<div class="qc"><b>Thêm khách hàng mới</b><input id="qcn" placeholder="Tên khách hàng *"><input id="qcp" placeholder="Số điện thoại"><input id="qca" placeholder="Địa chỉ"><div class="act" style="margin:0"><button class="ghost" data-qccancel>Hủy</button><button class="pri" data-qcsave style="flex:1">Lưu và chọn khách này</button></div></div>`:''}
   <label>Bảng giá<select id="tier"><option value="r">Giá lẻ</option><option value="w" ${o.tier==='w'?'selected':''}>Giá thợ / sỉ</option></select></label>
@@ -379,7 +380,16 @@ function drawPanel(){
   <div class="act" style="justify-content:space-between;align-items:center"><button class="ghost" data-clear>Xóa đơn</button><label class="chk" style="margin:0"><input type="checkbox" id="ap" ${db.autoprint!==false?'checked':''}>In hóa đơn sau khi bán</label></div>
   <button class="pri paybtn" data-pay>${o.edit?'LƯU THAY ĐỔI HÓA ĐƠN (F9)':'THANH TOÁN (F9)'}</button>`;
   $('#otime').onchange=e=>{o.time=e.target.value};
-  $('#cus').onchange=e=>{o.cid=e.target.value;$('#cinfo').innerHTML=cinfo(o);const c=db.customers.find(x=>x.id===o.cid);if(o.ship&&!o.addr&&c&&c.addr){o.addr=c.addr;if($('#addr'))$('#addr').value=c.addr}upd()};
+  const cq=$('#cusq'),cl=$('#cuslist');let cs=[],ch=-1;
+  const pick=id=>{o.cid=id;$('#cinfo').innerHTML=cinfo(o);const c=db.customers.find(x=>x.id===o.cid);if(o.ship&&!o.addr&&c&&c.addr){o.addr=c.addr;if($('#addr'))$('#addr').value=c.addr}cq.value=cusLab(c);cl.hidden=true;cq.blur();upd()};
+  const showCl=(f)=>{const k=nz(f).trim(),L=db.customers.filter(c=>!k||k.split(/\s+/).every(w=>nz(c.name+' '+(c.phone||'')+' '+(c.addr||'')).includes(w)));cs=(k?[]:[{id:'',name:'Khách lẻ'}]).concat(L.slice(0,8));if(!k&&!L.length&&!db.customers.length)cs=[{id:'',name:'Khách lẻ'}];ch=k&&cs.length?0:-1;
+    cl.innerHTML=cs.map((c,i)=>`<div data-i="${i}" class="${i===ch?'on':''}"><b>${esc(c.name)}</b>${c.phone?' - '+esc(c.phone):''}${c.debt?' <span class="low">(nợ '+money(c.debt)+')</span>':''}${c.addr?'<br><small>'+esc(c.addr)+'</small>':''}</div>`).join('')+(L.length>8?`<div class="more">Còn ${L.length-8} khách khác, gõ thêm để lọc</div>`:'')+(k&&!L.length?'<div class="more">Không tìm thấy khách. Bấm "+ Khách mới" để thêm.</div>':'');cl.hidden=false};
+  const mark=()=>[...cl.querySelectorAll('[data-i]')].forEach((e,i)=>e.classList.toggle('on',i===ch));
+  cq.onfocus=()=>{cq.select();showCl('')};
+  cq.oninput=()=>showCl(cq.value);
+  cq.onblur=()=>setTimeout(()=>{cl.hidden=true;const c=db.customers.find(x=>x.id===o.cid);cq.value=cusLab(c)},150);
+  cq.onkeydown=ev=>{if(ev.key==='ArrowDown'){ev.preventDefault();ch=Math.min(cs.length-1,ch+1);mark()}else if(ev.key==='ArrowUp'){ev.preventDefault();ch=Math.max(0,ch-1);mark()}else if(ev.key==='Enter'){ev.preventDefault();if(cs[ch])pick(cs[ch].id)}else if(ev.key==='Escape'){cq.blur()}};
+  cl.onmousedown=ev=>{ev.preventDefault();const it=ev.target.closest('[data-i]');if(it)pick(cs[+it.dataset.i].id)};
   if(qcOpen&&$('#qcn'))$('#qcn').focus();
   $('#tier').onchange=e=>{o.tier=e.target.value;drawLines()};
   $('#disc').oninput=e=>{o.disc=e.target.value;upd()};
@@ -822,6 +832,7 @@ function csv(){
 }
 
 /* ---------- Kho hàng: tồn kho, kiểm kê, sổ kho ---------- */
+const cusLab=c=>c?c.name+(c.phone?' - '+c.phone:''):'';
 const nz=t=>String(t||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d');
 let kt='ov',sq='',sf='',sc2='',card=null,lgType='',kkOpen=null,kkQ='',kkF='',PG={};
 const ADJ=['Điều chỉnh','Hỏng/vỡ','Hao hụt','Mất hàng','Xuất dùng nội bộ','Khác'],KKR=['Hỏng/vỡ','Hao hụt','Mất hàng','Xuất chưa ghi nhận','Nhập chưa ghi nhận','Khác'];
