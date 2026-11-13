@@ -62,6 +62,10 @@ th,td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--line);vertic
 th{font-size:13px;color:var(--mute);font-weight:600}
 td.n,th.n{text-align:right}
 td button{padding:5px 10px;font-size:13px;margin-left:4px}
+.acts{display:flex;flex-wrap:nowrap;gap:4px;justify-content:flex-end}.acts button{margin:0;white-space:nowrap}td.act{white-space:nowrap;width:1%}
+.rp{display:block;width:100%;text-align:left;background:#fff;border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:8px;color:inherit;font:inherit}.rp:hover{border-color:var(--ac);background:#f0f8f7}.rp .r1{display:flex;justify-content:space-between;gap:10px;font-weight:700}.rp .r2{color:var(--mute);font-size:13px;margin-top:2px}.rp .r3{font-size:13px;margin-top:4px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.rsel{display:flex;justify-content:space-between;align-items:center;gap:10px;background:#f0f8f7;border:1px solid var(--ac);border-radius:8px;padding:10px 12px;margin:10px 0}
+.hs{display:flex;flex-wrap:wrap;gap:10px;margin:8px 0 12px}.hs>div{flex:1 1 120px;background:#f6f8fa;border-radius:8px;padding:8px 12px}.hs b{display:block;font-size:17px}
 .ptab td:first-child{min-width:210px}.ptab td:nth-child(2){min-width:84px}.ptab td:nth-child(3){min-width:72px}.ptab td.n,.ptab th.n{white-space:nowrap}
 .clab{display:block;font-size:13px;color:var(--mute);margin-bottom:10px}.cbox{position:relative;flex:1;min-width:0}.cbox input{width:100%}.cl{position:absolute;left:0;right:0;top:100%;z-index:40;background:#fff;border:1px solid var(--line);border-radius:6px;max-height:300px;overflow:auto;box-shadow:0 6px 18px rgba(0,0,0,.15);margin-top:2px}.cl>div{padding:10px 12px;border-bottom:1px solid var(--line);cursor:pointer}.cl>div.on,.cl>div:hover{background:#e8f4f2}.cl>.more{color:var(--mute);font-size:13px;cursor:default}.cl>.more:hover{background:#fff}
 .pact{white-space:nowrap}.pact button{min-height:34px;padding:4px 10px;margin:0 0 0 4px;white-space:nowrap}
@@ -296,7 +300,7 @@ const ensureCat=pa=>{let cur='';pa.split('>').map(x=>x.trim()).filter(Boolean).s
 let af={},uRows=[],sRows=[];
 const prod=id=>db.products.find(p=>p.id===id);
 
-let pAddOpen=false,tab='sell',q='',editing=null,editC=null,cat='',fc='',orders=[],cur=0,orderSeq=0,hi=0;
+let histC=null,pAddOpen=false,tab='sell',q='',editing=null,editC=null,cat='',fc='',orders=[],cur=0,orderSeq=0,hi=0;
 
 function go(t){
   tab=t;$('#shopname').textContent=db.shop;
@@ -796,7 +800,7 @@ function invoices(){
   const nv=db.invoices.length-live().length;
   $('#main').innerHTML=`<div class="card"><div class="tools" style="justify-content:space-between;align-items:center;margin-bottom:10px"><h2 style="margin:0">Hóa đơn (${live().length} hiệu lực${nv?', '+nv+' đã hủy':''})</h2>${paperSel()}</div><table><tr><th>Số</th><th>Thời gian</th><th>Hàng hóa</th><th class="n">Tổng tiền</th><th></th></tr>
   ${db.invoices.map(v=>{const m=[v.cid?esc(v.cname)+(v.debt?' <b class="low">còn nợ '+money(v.debt)+'</b>':''):'',v.vat?'VAT '+v.vatp+'%: '+money(v.vat):'',v.addr?'Giao đến: '+esc(v.addr):'',v.note?'Ghi chú: '+esc(v.note):'',MT[v.method]||'Tiền mặt',v.staff?'NV: '+esc(v.staff):'',v.items.some(i=>i.ret)?'Có trả hàng':'',v.edited?'Đã sửa lúc '+fmtT(v.edited):''].filter(Boolean).join(' | ');
-   return `<tr class="${v.void?'void':''}"><td>${v.no}${v.void?' <span class="tag">Đã hủy</span>':''}</td><td>${fmtT(v.time)}</td><td>${esc(v.items.map(i=>i.name+(i.note?' ['+i.note+']':'')+' ×'+ln(i,'price').q+(i.un?' '+i.un:'')).join(', '))}<br><small>${m}</small></td><td class="n">${money(v.total)}</td><td class="n"><button class="ghost" data-print="${v.no}">In</button>${v.void?'':`<button class="ghost" data-sedit="${v.no}">Sửa</button><button class="ghost danger" data-void="${v.no}">Hủy</button>`}</td></tr>`}).join('')||'<tr><td colspan="5" class="empty">Chưa có hóa đơn. Hóa đơn xuất hiện sau khi bạn thanh toán một đơn hàng.</td></tr>'}</table></div>`;
+   return `<tr class="${v.void?'void':''}"><td>${v.no}${v.void?' <span class="tag">Đã hủy</span>':''}</td><td>${fmtT(v.time)}</td><td>${esc(v.items.map(i=>i.name+(i.note?' ['+i.note+']':'')+' ×'+ln(i,'price').q+(i.un?' '+i.un:'')).join(', '))}<br><small>${m}</small></td><td class="n">${money(v.total)}</td><td class="n act"><div class="acts"><button class="ghost" data-print="${v.no}">In</button>${v.void?'':`<button class="ghost" data-sedit="${v.no}">Sửa</button><button class="ghost danger" data-void="${v.no}">Hủy</button>`}</div></td></tr>`}).join('')||'<tr><td colspan="5" class="empty">Chưa có hóa đơn. Hóa đơn xuất hiện sau khi bạn thanh toán một đơn hàng.</td></tr>'}</table></div>`;
 }
 function voidInv(no){
   const v=db.invoices.find(x=>x.no===no);if(!v||v.void)return;
@@ -1044,9 +1048,19 @@ function delLoc(id){
 function custView(){
   const e=db.customers.find(x=>x.id===editC),debt=db.customers.reduce((s,c)=>s+(c.debt||0),0);
   $('#main').innerHTML=`<div class="card"><h2>${e?'Sửa khách hàng':'Thêm khách hàng'}</h2><div class="form" style="grid-template-columns:2fr 1fr 2fr 1fr auto auto"><label>Tên<input id="cn"></label><label>Số điện thoại<input id="cp"></label><label>Địa chỉ<input id="ca"></label><label>Ghi chú<input id="cno"></label><button class="pri" data-savecust>${e?'Lưu thay đổi':'Thêm'}</button>${e?'<button class="ghost" data-cancelc>Hủy</button>':'<span></span>'}</div></div>
-  <div class="card"><h2>Danh sách khách hàng (tổng nợ ${money(debt)})</h2><table><tr><th>Tên</th><th>Điện thoại</th><th>Địa chỉ</th><th class="n">Đã mua</th><th class="n">Công nợ</th><th></th></tr>${db.customers.map(c=>`<tr><td>${esc(c.name)}${c.note?'<br><small>'+esc(c.note)+'</small>':''}</td><td>${esc(c.phone||'')}</td><td>${esc(c.addr||'')}</td><td class="n">${money(db.invoices.filter(v=>v.cid===c.id&&!v.void).reduce((s,v)=>s+v.total,0))}</td><td class="n ${c.debt>0?'low':''}">${money(c.debt||0)}</td><td class="n">${c.debt>0?`<button class="ghost" data-paydebt="${c.id}">Thu nợ</button>`:''}<button class="ghost" data-editc="${c.id}">Sửa</button><button class="ghost danger" data-delc="${c.id}">Xóa</button></td></tr>`).join('')||'<tr><td colspan="6" class="empty">Chưa có khách hàng. Thêm khách để theo dõi lịch sử mua và ghi nợ.</td></tr>'}</table></div>
+  ${custHist()}
+  <div class="card"><h2>Danh sách khách hàng (tổng nợ ${money(debt)})</h2><table><tr><th>Tên</th><th>Điện thoại</th><th>Địa chỉ</th><th class="n">Đã mua</th><th class="n">Công nợ</th><th></th></tr>${db.customers.map(c=>`<tr><td><button class="ghost" data-hist="${c.id}" style="border:0;padding:0;margin:0;background:none;text-align:left;font-size:inherit;text-decoration:underline">${esc(c.name)}</button>${c.note?'<br><small>'+esc(c.note)+'</small>':''}</td><td>${esc(c.phone||'')}</td><td>${esc(c.addr||'')}</td><td class="n">${money(db.invoices.filter(v=>v.cid===c.id&&!v.void).reduce((s,v)=>s+v.total,0))}</td><td class="n ${c.debt>0?'low':''}">${money(c.debt||0)}</td><td class="n act"><div class="acts"><button class="ghost" data-hist="${c.id}">Lịch sử</button>${c.debt>0?`<button class="ghost" data-paydebt="${c.id}">Thu nợ</button>`:''}<button class="ghost" data-editc="${c.id}">Sửa</button><button class="ghost danger" data-delc="${c.id}">Xóa</button></div></td></tr>`).join('')||'<tr><td colspan="6" class="empty">Chưa có khách hàng. Thêm khách để theo dõi lịch sử mua và ghi nợ.</td></tr>'}</table></div>
   <div class="card"><h2>Lịch sử thu nợ</h2><table><tr><th>Thời gian</th><th>Khách hàng</th><th class="n">Số tiền</th></tr>${db.pays.slice(0,15).map(x=>`<tr><td>${fmtT(x.time)}</td><td>${esc(x.name)}</td><td class="n">${money(x.amt)}</td></tr>`).join('')||'<tr><td colspan="3" class="empty">Chưa có lần thu nợ nào.</td></tr>'}</table></div>`;
   if(e){$('#cn').value=e.name;$('#cp').value=e.phone||'';$('#ca').value=e.addr||'';$('#cno').value=e.note||''}
+}
+function custHist(){
+  const c=db.customers.find(x=>x.id===histC);if(!c)return '';
+  const L=db.invoices.filter(v=>v.cid===c.id),ok=L.filter(v=>!v.void),tot=ok.reduce((t,v)=>t+v.total,0),
+   rets=db.returns.filter(r=>ok.some(v=>v.no===r.inv)),rt=rets.reduce((t,r)=>t+r.total,0);
+  return `<div class="card" id="chist"><div class="tools" style="justify-content:space-between;align-items:center"><h2 style="margin:0">Lịch sử mua hàng: ${esc(c.name)}</h2><button class="ghost" data-histx>Đóng</button></div>
+  <div class="hs"><div><small>Số đơn</small><b>${ok.length}</b></div><div><small>Tổng đã mua</small><b>${money(tot)}</b></div><div><small>Đã trả hàng</small><b>${money(rt)}</b></div><div><small>Công nợ</small><b class="${c.debt>0?'low':''}">${money(c.debt||0)}</b></div></div>
+  <table><tr><th>Số HĐ</th><th>Thời gian</th><th>Hàng hóa</th><th class="n">Tổng tiền</th><th></th></tr>${L.map(v=>`<tr class="${v.void?'void':''}"><td>${v.no}${v.void?' <span class="tag">Đã hủy</span>':''}</td><td>${fmtT(v.time)}</td><td>${v.items.map(i=>{const q=ln(i,'price');return esc(i.name+(i.note?' ['+i.note+']':''))+' <b>×'+q.q+(q.u?' '+esc(q.u):'')+'</b>'+(i.ret?' <small class="low">(đã trả '+rd(i.ret/ri(i))+')</small>':'')}).join('<br>')}${v.debt?'<br><small class="low">còn nợ '+money(v.debt)+'</small>':''}</td><td class="n">${money(v.total)}</td><td class="n act"><div class="acts"><button class="ghost" data-print="${v.no}">In</button>${v.void?'':`<button class="ghost" data-rgo="${v.no}">Trả hàng</button>`}</div></td></tr>`).join('')||'<tr><td colspan="5" class="empty">Khách này chưa có hóa đơn nào.</td></tr>'}</table>
+  ${rets.length?`<h2 style="margin-top:16px">Phiếu trả hàng</h2><table><tr><th>Số phiếu</th><th>Thời gian</th><th>Hóa đơn gốc</th><th>Hàng trả</th><th class="n">Tiền hoàn</th></tr>${rets.map(r=>`<tr><td>${r.no}</td><td>${fmtT(r.time)}</td><td>${r.inv}</td><td>${esc(r.items.map(i=>i.name+' ×'+ln(i,'price').q+(i.un?' '+i.un:'')).join(', '))}</td><td class="n">${money(r.total)}</td></tr>`).join('')}</table>`:''}</div>`;
 }
 function saveCust(){
   const name=$('#cn').value.trim();if(!name)return alert('Nhập tên khách hàng.');
@@ -1068,7 +1082,7 @@ function payDebt(id){
 }
 
 /* ---------- Nhà cung cấp ---------- */
-let spEdit=null,spSid='',spAmt='',spTime='',spNote='',spF='',editS=null,impF='',imp={sid:'',note:'',lines:[]},retNo='';
+let spEdit=null,spSid='',spAmt='',spTime='',spNote='',spF='',editS=null,impF='',imp={sid:'',note:'',lines:[]},retNo='',retQ='';
 const plab=p=>(p.code?p.code+' - ':'')+p.name;
 const today=()=>new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,10);
 function supView(){
@@ -1223,17 +1237,21 @@ function delImport(no){
 /* ---------- Trả hàng ---------- */
 function retView(){
   const v=db.invoices.find(x=>x.no===retNo&&!x.void),r=v&&v.sub?(v.total-(v.fee||0))/v.sub:1,X=retEdit?db.returns.find(z=>z.no===retEdit):null,oq=i=>{if(!X)return 0;const k=v.items.indexOf(i),it=X.items.find(z=>z.k!=null?z.k===k:z.id===i.id);return it?it.qty:0};
-  $('#main').innerHTML=`<div class="card"><h2>${X?'Sửa phiếu trả hàng '+X.no+' <button class="ghost" data-redcancel>Hủy sửa</button>':'Trả hàng'}</h2><label style="max-width:420px">Chọn hóa đơn cũ (gõ hoặc chọn số hóa đơn)<input id="rno" list="invl" value="${esc(retNo)}" placeholder="Ví dụ HD0005" autocomplete="off"></label>
-  <datalist id="invl">${live().slice(0,200).map(x=>`<option value="${x.no}">${esc(x.cname)}, ${fmtT(x.time)}, ${money(x.total)}</option>`).join('')}</datalist>
+  $('#main').innerHTML=`<div class="card"><h2>${X?'Sửa phiếu trả hàng '+X.no+' <button class="ghost" data-redcancel>Hủy sửa</button>':'Trả hàng'}</h2>${X||v?'':`<label>Tìm hóa đơn cần trả hàng <small>(gõ số HĐ, tên khách hoặc tên hàng đã mua)</small><input id="rsearch" value="${esc(retQ)}" placeholder="Ví dụ: HD0085, anh Quân, gạch 50x50" autocomplete="off"></label><div id="rpl" style="margin-top:10px"></div>`}
+  ${v?`<div class="rsel"><div><b>${v.no}</b> · ${esc(v.cname||'Khách lẻ')}<br><small>${fmtT(v.time)} · tổng ${money(v.total)}</small></div>${X?'':'<button class="ghost" data-rchg>Đổi hóa đơn</button>'}</div>`:''}
   ${retNo&&!v?'<p class="low">Không tìm thấy hóa đơn này, hoặc hóa đơn đã bị hủy.</p>':''}
-  ${v?`<p><small>${fmtT(v.time)}, ${esc(v.cname)}, tổng ${money(v.total)}</small></p><table><tr><th>Hàng hóa</th><th class="n">Đã mua</th><th class="n">Đã trả</th><th class="n">Trả lần này</th><th class="n">Tiền hoàn</th></tr>${v.items.map((i,k)=>`<tr><td>${esc(i.name)}${i.note?' <small>['+esc(i.note)+']</small>':''}<br><small>${money(Math.round(i.price*ri(i)))}/${esc(ru(i))}</small></td><td class="n">${rd(i.qty/ri(i))} ${esc(ru(i))}</td><td class="n">${rd(((i.ret||0)-oq(i))/ri(i))}</td><td class="n"><input class="rq pi" type="number" min="0" step="any" data-ri="${k}" value="${oq(i)?rd(oq(i)/ri(i)):''}" placeholder="0" ${rd(i.qty-((i.ret||0)-oq(i)))<=0?'disabled':''}></td><td class="n" id="rr${k}">${oq(i)?money(Math.round(oq(i)*i.price*r)):'—'}</td></tr>`).join('')}</table>
+  ${v?`<table><tr><th>Hàng hóa</th><th class="n">Đã mua</th><th class="n">Đã trả</th><th class="n">Trả lần này</th><th class="n">Tiền hoàn</th></tr>${v.items.map((i,k)=>`<tr><td>${esc(i.name)}${i.note?' <small>['+esc(i.note)+']</small>':''}<br><small>${money(Math.round(i.price*ri(i)))}/${esc(ru(i))}</small></td><td class="n">${rd(i.qty/ri(i))} ${esc(ru(i))}</td><td class="n">${rd(((i.ret||0)-oq(i))/ri(i))}</td><td class="n"><input class="rq pi" type="number" min="0" step="any" data-ri="${k}" value="${oq(i)?rd(oq(i)/ri(i)):''}" placeholder="0" ${rd(i.qty-((i.ret||0)-oq(i)))<=0?'disabled':''}></td><td class="n" id="rr${k}">${oq(i)?money(Math.round(oq(i)*i.price*r)):'—'}</td></tr>`).join('')}</table>
   <label style="margin-top:12px;max-width:280px">Thời gian trả hàng${X?'':' <small>(để trống = bây giờ)</small>'}<input type="datetime-local" id="rtime" value="${esc(retTime)}" max="${toLocal(Date.now())}"></label>
   <label style="margin-top:12px">Lý do / ghi chú<input id="rnote" value="${esc(X?X.note||'':'')}"></label>
   <div class="row big"><span>Tổng tiền hoàn lại</span><span id="rtot">${X?money(X.total):'0đ'}</span></div>
   <p><small>Tiền hoàn đã tính theo giảm giá${v.vat?' và VAT':''} của hóa đơn gốc. Nếu khách còn nợ hóa đơn này, phần hoàn sẽ ưu tiên trừ vào công nợ.</small></p>
   <button class="pri" data-rsave>${X?'Lưu thay đổi phiếu':'Xác nhận trả hàng'}</button>`:''}</div>
-  <div class="card"><div class="tools" style="justify-content:space-between;align-items:center;margin-bottom:10px"><h2 style="margin:0">Lịch sử trả hàng (${db.returns.length})</h2>${paperSel()}</div><table><tr><th>Số phiếu</th><th>Thời gian</th><th>Hóa đơn gốc</th><th>Hàng trả</th><th class="n">Tiền hoàn</th><th></th></tr>${db.returns.map(x=>`<tr><td>${x.no}</td><td>${fmtT(x.time)}</td><td>${x.inv}<br><small>${esc(x.cname||'')}</small></td><td>${esc(x.items.map(i=>i.name+' ×'+ln(i,'price').q+(i.un?' '+i.un:'')).join(', '))}${x.note?'<br><small>'+esc(x.note)+'</small>':''}</td><td class="n">${money(x.total)}${x.cut?'<br><small>trừ nợ '+money(x.cut)+'</small>':''}${x.edited?'<br><small>đã sửa</small>':''}</td><td class="n"><button class="ghost" data-rprint="${x.no}">In</button><button class="ghost" data-redit="${x.no}">Sửa</button></td></tr>`).join('')||'<tr><td colspan="6" class="empty">Chưa có phiếu trả hàng.</td></tr>'}</table></div>`;
-  $('#rno').onchange=e=>{retNo=e.target.value.trim().toUpperCase();retEdit=null;retTime='';retView()};
+  <div class="card"><div class="tools" style="justify-content:space-between;align-items:center;margin-bottom:10px"><h2 style="margin:0">Lịch sử trả hàng (${db.returns.length})</h2>${paperSel()}</div><table><tr><th>Số phiếu</th><th>Thời gian</th><th>Hóa đơn gốc</th><th>Hàng trả</th><th class="n">Tiền hoàn</th><th></th></tr>${db.returns.map(x=>`<tr><td>${x.no}</td><td>${fmtT(x.time)}</td><td>${x.inv}<br><small>${esc(x.cname||'')}</small></td><td>${esc(x.items.map(i=>i.name+' ×'+ln(i,'price').q+(i.un?' '+i.un:'')).join(', '))}${x.note?'<br><small>'+esc(x.note)+'</small>':''}</td><td class="n">${money(x.total)}${x.cut?'<br><small>trừ nợ '+money(x.cut)+'</small>':''}${x.edited?'<br><small>đã sửa</small>':''}</td><td class="n act"><div class="acts"><button class="ghost" data-rprint="${x.no}">In</button><button class="ghost" data-redit="${x.no}">Sửa</button></div></td></tr>`).join('')||'<tr><td colspan="6" class="empty">Chưa có phiếu trả hàng.</td></tr>'}</table></div>`;
+  if($('#rpl')){
+    const draw=()=>{const k=nz(retQ).trim(),L=live().filter(x=>!k||nz(x.no+' '+(x.cname||'')+' '+x.items.map(i=>i.name).join(' ')).includes(k));
+      $('#rpl').innerHTML=(L.slice(0,30).map(x=>`<button class="rp" data-rpick="${x.no}"><span class="r1"><span>${x.no} · ${esc(x.cname||'Khách lẻ')}</span><span>${money(x.total)}</span></span><span class="r2" style="display:block">${fmtT(x.time)}${x.items.some(i=>i.ret)?' · có trả hàng':''}</span><span class="r3">${esc(x.items.map(i=>i.name+' ×'+ln(i,'price').q+(i.un?' '+i.un:'')).join(', '))}</span></button>`).join('')||'<p class="empty">Không tìm thấy hóa đơn phù hợp.</p>')+(L.length>30?`<p><small>Còn ${L.length-30} hóa đơn nữa, gõ thêm để lọc.</small></p>`:'')};
+    $('#rsearch').oninput=e=>{retQ=e.target.value;draw()};draw();
+  }
   if($('#rtime'))$('#rtime').onchange=e=>{retTime=e.target.value};
   document.querySelectorAll('.rq').forEach(el=>el.oninput=()=>{
     const i=v.items[+el.dataset.ri],f=ri(i),mx=rd((i.qty-((i.ret||0)-oq(i)))/f);let q=Math.max(0,+el.value||0);if(q>mx){q=mx;el.value=mx}
@@ -1771,6 +1789,11 @@ document.addEventListener('click',e=>{
   else if(d.count)countStock(d.count);
   else if('savecust' in d)saveCust();
   else if(d.editc){editC=d.editc;custView();scrollTo(0,0)}
+  else if(d.hist){histC=d.hist;custView();const h=$('#chist');if(h)h.scrollIntoView({behavior:'smooth',block:'start'})}
+  else if('histx' in d){histC=null;custView()}
+  else if(d.rgo){retNo=d.rgo;retEdit=null;retTime='';histC=null;go('returns');scrollTo(0,0)}
+  else if(d.rpick){retNo=d.rpick;retEdit=null;retTime='';retQ='';retView();scrollTo(0,0)}
+  else if('rchg' in d){retNo='';retEdit=null;retTime='';retView()}
   else if('cancelc' in d){editC=null;custView()}
   else if(d.delc)delCust(d.delc);
   else if(d.paydebt)payDebt(d.paydebt);
