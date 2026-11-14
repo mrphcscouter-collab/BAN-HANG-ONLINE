@@ -497,7 +497,7 @@ function editInvoice(no){
 function printInv(v){
   const cu=db.customers.find(x=>x.id===v.cid)||{},ph=v.cphone||cu.phone||'',ad=v.caddr||cu.addr||'';
   const rows=v.items.map(i=>{const p=prod(i.id)||{},d=pdesc(p),q=i.un?String(i.uq):String(rd(i.qty)),u=i.un||i.unit||'',pr=i.un?i.up:i.price,amt=Math.round(i.qty*i.price);
-    const ex=[d,i.un?'= '+rd(i.qty)+' '+(i.unit||''):'',i.note].filter(Boolean).join(' | ');return{c:[esc(p.code||''),`<b>${esc(i.name)}</b>${ex?`<br><small>${esc(ex)}</small>`:''}`,esc(u),q,money(pr),money(amt)],k:[`${esc(i.name)}${i.note?' ('+esc(i.note)+')':''}<br>${q} ${esc(u)} × ${money(pr)}`,money(amt)]}});
+    const ex=i.note||'';return{c:[esc(p.code||''),`<b>${esc(i.name)}</b>${ex?`<br><small>${esc(ex)}</small>`:''}`,esc(u),q,money(pr),money(amt)],k:[`${esc(i.name)}${i.note?' ('+esc(i.note)+')':''}<br>${q} ${esc(u)} × ${money(pr)}`,money(amt)]}});
   printDoc({title:'PHIẾU BÁN HÀNG',no:v.no,time:fmtT(v.time),
     parties:[['Khách hàng',esc(v.cname||'Khách lẻ')],ph&&['Điện thoại',esc(ph)],ad&&['Địa chỉ',esc(ad)],v.addr&&['Giao đến',esc(v.addr)],['Thanh toán',MT[v.method]||'Tiền mặt'],v.staff&&['Nhân viên bán',esc(v.staff)],v.edited&&['Đã sửa lúc',fmtT(v.edited)]].filter(Boolean),
     cols:[['Mã hàng','left','18mm'],['Tên hàng, quy cách'],['ĐVT','center','14mm'],['SL','right','16mm'],['Đơn giá','right','24mm'],['Thành tiền','right','28mm']],rows,
