@@ -843,7 +843,8 @@ function report(){
   rk.forEach(([id,v])=>{abc[acc<tt*0.8?'A':acc<tt*0.95?'B':'C']++;acc+=v});abc.C+=act.filter(p=>!rv[p.id]).length;
   const tl=Object.entries(top).sort((a,b)=>b[1].m-a[1].m).slice(0,5),low=db.products.filter(p=>p.status!=='off'&&p.stock<=(p.min||5));
   const st=(t,v,sm)=>`<div class="stat">${t}<b>${v}</b><small>${sm||''}</small></div>`;
-  $('#main').innerHTML=`<div class="stats">
+  $('#main').innerHTML=`<div class="card"><h2>Báo cáo tổng quan (file Word)</h2><p><small>Tạo file .docx đầy đủ: kết quả kinh doanh, xu hướng, danh mục và sản phẩm, kho hàng, khách hàng và công nợ, chi phí, đánh giá sức khỏe cửa hàng, cùng kế hoạch hành động và chiến lược cải thiện mỗi ngày.</small></p><div class="tools"><select id="rptp" style="width:auto">${RPT_OPTS.map(o=>`<option value="${o[0]}">${o[1]}</option>`).join('')}</select><button class="pri" data-rpt>Báo cáo tổng quan</button></div></div>
+  <div class="stats">
    ${st('Doanh thu hôm nay',money(rev(d0)),from(L,d0).length+' hóa đơn')}${st('Doanh thu tháng này',money(rev(m0)),from(L,m0).length+' hóa đơn')}${st('Tổng doanh thu',money(rev(0)),L.length+' hóa đơn')}
    ${st('Chi phí tháng này',money(cp(m0)),'Điện nước, lương, vận chuyển…')}${st('Lãi ròng ước tính tháng này',money(lg(m0)-cp(m0)),'Lãi gộp trừ chi phí')}${st('VAT thu tháng này',money(sum(from(L,m0),v=>v.vat||0)))}
    ${st('Công nợ khách hàng',money(db.customers.reduce((s,c)=>s+(c.debt||0),0)),db.customers.filter(c=>c.debt>0).length+' khách đang nợ')}${st('Nợ nhà cung cấp',money(db.suppliers.reduce((s,c)=>s+(c.debt||0),0)),db.suppliers.filter(c=>c.debt>0).length+' nhà cung cấp đang nợ')}${st('Giá trị tồn kho',money(db.products.reduce((s,p)=>s+p.stock*(p.cost||0),0)),'theo giá vốn')}</div>
@@ -853,6 +854,260 @@ function report(){
   <div class="card"><h2>Hàng chậm bán và phân loại ABC</h2><div class="row"><span>Còn tồn nhưng không bán trong 30 / 60 / 90 ngày</span><b>${slow(30).length} / ${slow(60).length} / ${slow(90).length} mặt hàng</b></div><div class="row"><span>Nhóm A (khoảng 80% doanh thu) / B (15%) / C (5% và hàng chưa bán)</span><b>${abc.A} / ${abc.B} / ${abc.C} mặt hàng</b></div>${slow(90).slice(0,8).map(p=>`<div class="row"><small>${esc(p.name)}</small><small>${rd(p.stock)} ${esc(p.unit)}, vốn ${money(p.stock*(p.cost||0))}</small></div>`).join('')}<small>Hàng nhóm A nên kiểm kê thường xuyên hơn. Danh sách trên là 8 mặt hàng chậm bán 90 ngày đầu tiên.</small></div>
   <div class="card"><h2>Sắp hết hàng</h2>${low.map(p=>`<div class="row"><span>${esc(p.name)}</span><span class="low">${p.stock<=0?'Hết hàng':'Còn '+rd(p.stock)+' '+esc(p.unit)}</span></div>`).join('')||'<p class="empty">Tất cả sản phẩm còn đủ hàng.</p>'}</div>`;
 }
+/* ---------- Báo cáo tổng quan (Word .docx) ---------- */
+const DMIME='application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+const fmtD=t=>new Date(t).toLocaleDateString('vi-VN'),nf=n=>(Math.round(n*100)/100).toLocaleString('vi-VN'),pc=(a,b)=>b>0?Math.round(a/b*1000)/10:0,pcs=(a,b)=>b>0?nf(pc(a,b))+'%':'—';
+const rchg=(a,b)=>b>0?(a>=b?'+':'')+nf(Math.round((a-b)/b*1000)/10)+'%':'—';
+const RPT_OPTS=[['30','30 ngày gần nhất'],['m','Tháng này'],['pm','Tháng trước'],['90','90 ngày gần nhất'],['365','12 tháng gần nhất'],['all','Toàn bộ dữ liệu']];
+function rptRange(k){
+  const n=new Date(),d0=new Date(n.getFullYear(),n.getMonth(),n.getDate()).getTime(),now=Date.now();
+  if(k==='m')return{t0:new Date(n.getFullYear(),n.getMonth(),1).getTime(),t1:now,name:'Tháng '+(n.getMonth()+1)+'/'+n.getFullYear()};
+  if(k==='pm'){const a=new Date(n.getFullYear(),n.getMonth()-1,1);return{t0:a.getTime(),t1:new Date(n.getFullYear(),n.getMonth(),1).getTime(),name:'Tháng '+(a.getMonth()+1)+'/'+a.getFullYear()}}
+  if(k==='all'){const t=db.invoices.reduce((m,v)=>Math.min(m,v.time),now);return{t0:new Date(new Date(t).getFullYear(),new Date(t).getMonth(),new Date(t).getDate()).getTime(),t1:now,name:'Toàn bộ thời gian',all:true}}
+  const d=+k;return{t0:d0-(d-1)*864e5,t1:now,name:d+' ngày gần nhất'};
+}
+function rptCore(t0,t1){
+  const inR=x=>x.time>=t0&&x.time<t1,L=live().filter(inR),RT=db.returns.filter(inR),EX=db.expenses.filter(inR),S=(a,f)=>a.reduce((s,x)=>s+f(x),0);
+  const gross=S(L,v=>v.total),ret=S(RT,r=>r.total),rev=gross-ret;
+  const sal=S(L,v=>S(v.items,i=>i.qty*i.price))-S(L,v=>v.disc||0)-S(RT,r=>S(r.items,i=>i.qty*i.price));
+  const lg=S(L,v=>S(v.items,i=>i.qty*(i.price-(i.cost||0))))-S(L,v=>v.disc||0)-S(RT,r=>S(r.items,i=>i.qty*(i.price-(i.cost||0))));
+  const exp=S(EX,x=>x.amt);
+  return{L,RT,EX,n:L.length,gross,ret,rev,sal,lg,cogs:sal-lg,exp,profit:lg-exp,avg:L.length?gross/L.length:0,disc:S(L,v=>v.disc||0),vat:S(L,v=>v.vat||0),fee:S(L,v=>v.fee||0),
+    voidN:db.invoices.filter(v=>v.void&&inR(v)).length,all:db.invoices.filter(inR).length};
+}
+function rptAnalyze(key){
+  const R=rptRange(key),days=Math.max(1,Math.ceil((R.t1-R.t0)/864e5)),C=rptCore(R.t0,R.t1),P=R.all?null:rptCore(R.t0-(R.t1-R.t0),R.t0),S=(a,f)=>a.reduce((s,x)=>s+f(x),0);
+  const A={R,days,C,P,key};
+  const byDay={},byWd=Array.from({length:7},()=>({n:0,m:0})),band=[[5,8],[8,11],[11,14],[14,17],[17,20],[20,24]].map(b=>({b,n:0,m:0})),byMon={},byCat={},byProd={},byCust={},byStaff={},byMeth={};
+  C.L.forEach(v=>{
+    const d=new Date(v.time),dk=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'),mk=dk.slice(0,7);
+    (byDay[dk]=byDay[dk]||{n:0,m:0,l:0}).n++;byDay[dk].m+=v.total;
+    byWd[d.getDay()].n++;byWd[d.getDay()].m+=v.total;
+    const bd=band.find(x=>d.getHours()>=x.b[0]&&d.getHours()<x.b[1]);if(bd){bd.n++;bd.m+=v.total}
+    const lgv=S(v.items,i=>i.qty*(i.price-(i.cost||0)))-(v.disc||0);byDay[dk].l+=lgv;
+    const m=byMon[mk]=byMon[mk]||{n:0,m:0,l:0};m.n++;m.m+=v.total;m.l+=lgv;
+    const ck=v.cid||'_le',c=byCust[ck]=byCust[ck]||{name:v.cid?v.cname:'Khách lẻ',cid:v.cid,n:0,m:0,last:0};c.n++;c.m+=v.total;c.last=Math.max(c.last,v.time);
+    const sk=v.staff||'(Không ghi tên)',s=byStaff[sk]=byStaff[sk]||{n:0,m:0,l:0};s.n++;s.m+=v.total;s.l+=lgv;
+    const mt=MT[v.method]||'Tiền mặt',me=byMeth[mt]=byMeth[mt]||{n:0,m:0};me.n++;me.m+=v.total;
+    v.items.forEach(i=>{const k=i.cat||'Khác',c2=byCat[k]=byCat[k]||{m:0,l:0,q:0};c2.m+=i.qty*i.price;c2.l+=i.qty*(i.price-(i.cost||0));
+      const pk=i.id||i.name,p=byProd[pk]=byProd[pk]||{name:i.name,unit:i.unit||'',cat:k,q:0,m:0,l:0,cost:0,n:0};p.q+=i.qty;p.m+=i.qty*i.price;p.l+=i.qty*(i.price-(i.cost||0));p.n++})});
+  C.RT.forEach(r=>r.items.forEach(i=>{const k=i.cat||'Khác',c2=byCat[k];if(c2){c2.m-=i.qty*i.price;c2.l-=i.qty*(i.price-(i.cost||0))}const p=byProd[i.id||i.name];if(p){p.q-=i.qty;p.m-=i.qty*i.price;p.l-=i.qty*(i.price-(i.cost||0))}}));
+  Object.assign(A,{byDay,byWd,band,byMon,byCat,byProd,byCust,byStaff,byMeth});
+  // kho
+  const live30=live().filter(v=>v.time>=Date.now()-30*864e5),v30={};live30.forEach(v=>v.items.forEach(i=>{v30[i.id]=(v30[i.id]||0)+i.qty}));
+  const last={},rv={};live().forEach(v=>v.items.forEach(x=>{last[x.id]=Math.max(last[x.id]||0,v.time);rv[x.id]=(rv[x.id]||0)+x.qty*x.price}));
+  const act=db.products.filter(p=>p.status!=='off'),stk=db.products.reduce((s,p)=>s+Math.max(0,p.stock)*(p.cost||0),0);
+  const withStock=act.filter(p=>p.stock>0),slow=d=>withStock.filter(p=>Date.now()-(last[p.id]||p.created||0)>d*864e5).sort((a,b)=>b.stock*(b.cost||0)-a.stock*(a.cost||0));
+  const rk=Object.entries(rv).sort((a,b)=>b[1]-a[1]),tt=rk.reduce((a,x)=>a+x[1],0),abc={A:0,B:0,C:0};let acc=0;rk.forEach(([id,v])=>{abc[acc<tt*.8?'A':acc<tt*.95?'B':'C']++;acc+=v});abc.C+=withStock.filter(p=>!rv[p.id]).length;
+  const runout=act.filter(p=>v30[p.id]>0).map(p=>({p,v:v30[p.id]/30,left:p.stock>0?p.stock/(v30[p.id]/30):0})).filter(x=>x.left<14).sort((a,b)=>a.left-b.left);
+  Object.assign(A,{stk,act,slow30:slow(30),slow60:slow(60),slow90:slow(90),abc,runout,last,v30,out:act.filter(p=>p.stock<=0),low:act.filter(p=>p.stock>0&&p.stock<=(p.min||5)),
+    stkPeriodDays:C.cogs>0?stk/(C.cogs/days):0});
+  // công nợ
+  const debtors=db.customers.filter(c=>c.debt>0).map(c=>{const o=db.invoices.filter(v=>v.cid===c.id&&!v.void&&v.debt>0).reduce((m,v)=>Math.min(m,v.time),Date.now());return{c,age:Math.floor((Date.now()-o)/864e5)}}).sort((a,b)=>b.c.debt-a.c.debt);
+  const cdebt=db.customers.reduce((s,c)=>s+(c.debt||0),0),sdebt=db.suppliers.reduce((s,c)=>s+(c.debt||0),0);
+  Object.assign(A,{debtors,cdebt,sdebt,dso:C.rev>0?cdebt/(C.rev/days):0});
+  // khách lâu không quay lại
+  const lastBy={},spendAll={};live().forEach(v=>{if(!v.cid)return;lastBy[v.cid]=Math.max(lastBy[v.cid]||0,v.time);spendAll[v.cid]=(spendAll[v.cid]||0)+v.total});
+  A.churn=db.customers.filter(c=>lastBy[c.id]&&Date.now()-lastBy[c.id]>45*864e5&&spendAll[c.id]>0).map(c=>({c,days:Math.floor((Date.now()-lastBy[c.id])/864e5),m:spendAll[c.id]})).sort((a,b)=>b.m-a.m);
+  // mua kèm
+  const pr={};C.L.forEach(v=>{const u=[...new Set(v.items.map(i=>i.name))].slice(0,12);for(let a=0;a<u.length;a++)for(let b=a+1;b<u.length;b++){const k=[u[a],u[b]].sort().join(' + ');pr[k]=(pr[k]||0)+1}});
+  A.pairs=Object.entries(pr).filter(x=>x[1]>=2).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  // nhập hàng, NCC, dòng tiền
+  const IM=db.imports.filter(x=>x.time>=R.t0&&x.time<R.t1&&!x.void),bySup={};IM.forEach(x=>{const k=x.sname||'(Không ghi NCC)',s=bySup[k]=bySup[k]||{n:0,m:0};s.n++;s.m+=x.total});
+  const SP=db.spays.filter(x=>x.time>=R.t0&&x.time<R.t1&&!x.void),PY=db.pays.filter(x=>x.time>=R.t0&&x.time<R.t1);
+  const cin=S(C.L,v=>v.total-(v.debt||0))+S(PY,x=>x.amt)-S(C.RT,r=>r.total-(r.cut||0)),cout=C.exp+S(IM,x=>x.paid||0)+S(SP,x=>x.amt);
+  Object.assign(A,{IM,bySup,imTot:S(IM,x=>x.total),cin,cout,payIn:S(PY,x=>x.amt),spOut:S(SP,x=>x.amt),imPaid:S(IM,x=>x.paid||0)});
+  const ex={};C.EX.forEach(x=>ex[x.cat]=(ex[x.cat]||0)+x.amt);A.exCat=ex;
+  A.lossP=Object.values(byProd).filter(p=>p.m>0&&p.l<0).sort((a,b)=>a.l-b.l);
+  A.thinP=Object.values(byProd).filter(p=>p.m>0&&p.l>=0&&p.l/p.m<0.05).sort((a,b)=>b.m-a.m);
+  return A;
+}
+/* đánh giá + đề xuất tự động dựa trên số liệu thật */
+function rptAdvise(A){
+  const C=A.C,P=A.P,mg=C.sal>0?C.lg/C.sal*100:0,expR=C.rev>0?C.exp/C.rev*100:0,retR=C.gross>0?C.ret/C.gross*100:0,voidR=C.all>0?C.voidN/C.all*100:0,
+   slowR=A.stk>0?A.slow90.reduce((s,p)=>s+p.stock*(p.cost||0),0)/A.stk*100:0,outR=A.act.length?A.out.length/A.act.length*100:0;
+  const lv=(v,g,w,rev)=>rev?(v>=g?'Tốt':v>=w?'Cần chú ý':'Cảnh báo'):(v<=g?'Tốt':v<=w?'Cần chú ý':'Cảnh báo');
+  const H=[
+   ['Biên lãi gộp',nf(mg)+'%','≥ 18% tốt; < 10% cảnh báo',lv(mg,18,10,true)],
+   ['Chi phí / doanh thu',nf(expR)+'%','≤ 8% tốt; > 15% cảnh báo',lv(expR,8,15)],
+   ['Số ngày doanh thu đang bị khách nợ',nf(A.dso)+' ngày','≤ 15 ngày tốt; > 45 cảnh báo',lv(A.dso,15,45)],
+   ['Số ngày tồn kho (vòng quay)',nf(A.stkPeriodDays)+' ngày','≤ 45 ngày tốt; > 90 cảnh báo',lv(A.stkPeriodDays,45,90)],
+   ['Vốn kẹt trong hàng chậm bán 90 ngày',nf(slowR)+'% giá trị tồn','≤ 10% tốt; > 25% cảnh báo',lv(slowR,10,25)],
+   ['Mặt hàng đang bán đã hết tồn',nf(outR)+'%','≤ 3% tốt; > 10% cảnh báo',lv(outR,3,10)],
+   ['Tỷ lệ hàng trả lại',nf(retR)+'%','≤ 2% tốt; > 5% cảnh báo',lv(retR,2,5)],
+   ['Tỷ lệ hóa đơn bị hủy',nf(voidR)+'%','≤ 2% tốt; > 5% cảnh báo',lv(voidR,2,5)]];
+  // nhận định
+  const I=[];
+  if(P&&P.rev>0)I.push(`Doanh thu ${A.R.name.toLowerCase()} là **${money(C.rev)}**, ${C.rev>=P.rev?'tăng':'giảm'} **${rchg(C.rev,P.rev).replace('+','')}** so với kỳ liền trước (${money(P.rev)}).`);
+  else I.push(`Doanh thu ${A.R.name.toLowerCase()} là **${money(C.rev)}** từ **${C.n}** hóa đơn, trung bình **${money(C.avg)}**/đơn.`);
+  I.push(`Lãi gộp **${money(C.lg)}** (biên **${nf(mg)}%**); sau chi phí **${money(C.exp)}**, lãi ròng ước tính **${money(C.profit)}**${C.profit<0?' (đang LỖ)':''}.`);
+  const cats=Object.entries(A.byCat).sort((a,b)=>b[1].l-a[1].l);if(cats.length)I.push(`Danh mục đóng góp lãi gộp lớn nhất: **${cats[0][0]}** (${money(cats[0][1].l)}, ${pcs(cats[0][1].l,C.lg)} tổng lãi gộp).`);
+  const tp=Object.values(A.byProd).sort((a,b)=>b.m-a.m)[0];if(tp)I.push(`Sản phẩm bán chạy nhất theo doanh thu: **${tp.name}** (${nf(tp.q)} ${tp.unit}, ${money(tp.m)}).`);
+  const wd=A.byWd.map((x,i)=>[i,x.m]).sort((a,b)=>b[1]-a[1])[0];if(wd&&wd[1]>0)I.push(`Ngày bán mạnh nhất trong tuần: **${['Chủ nhật','Thứ hai','Thứ ba','Thứ tư','Thứ năm','Thứ sáu','Thứ bảy'][wd[0]]}**.`);
+  if(A.cdebt>0)I.push(`Khách đang nợ **${money(A.cdebt)}** (${A.debtors.length} khách), tương đương **${nf(A.dso)}** ngày doanh thu.`);
+  if(A.slow90.length)I.push(`Có **${A.slow90.length}** mặt hàng không bán được trong 90 ngày, đang chôn **${money(A.slow90.reduce((s,p)=>s+p.stock*(p.cost||0),0))}** vốn.`);
+  // hành động
+  const T=[],W=[],M=[],ST=[];
+  A.debtors.slice(0,3).forEach(d=>T.push(['Cao',`Thu nợ ${d.c.name}: ${money(d.c.debt)} (${d.age<1?'mới phát sinh':'nợ khoảng '+d.age+' ngày'})${d.c.phone?', SĐT '+d.c.phone:''}. Gọi nhắc hoặc hẹn ngày cụ thể.`]));
+  A.runout.slice(0,6).forEach(x=>{const need=Math.max(1,Math.ceil(x.v*21-Math.max(0,x.p.stock)));T.push([x.p.stock<=0?'Cao':'Trung bình',`Nhập thêm "${x.p.name}": ${x.p.stock<=0?'đã hết hàng':'còn '+nf(x.p.stock)+' '+x.p.unit+' (đủ khoảng '+nf(x.left)+' ngày)'}, bán trung bình ${nf(x.v*30)} ${x.p.unit}/30 ngày. Gợi ý nhập khoảng ${nf(need)} ${x.p.unit} cho 3 tuần.`])});
+  A.lossP.slice(0,3).forEach(p=>T.push(['Cao',`Kiểm tra giá "${p.name}": đang bán LỖ ${money(-p.l)} trong kỳ (giá bán thấp hơn giá vốn). Điều chỉnh giá bán hoặc cập nhật lại giá vốn.`]));
+  A.churn.slice(0,3).forEach(c=>T.push(['Trung bình',`Liên hệ khách quen ${c.c.name}: đã ${c.days} ngày chưa mua lại (từng mua ${money(c.m)}). Hỏi nhu cầu, gửi báo giá hoặc ưu đãi nhỏ.`]));
+  if(!T.length)T.push(['Thấp','Không có việc khẩn cấp từ dữ liệu. Duy trì thói quen hằng ngày bên dưới.']);
+  if(A.slow90.length)W.push(['Cao',`Xả hàng chậm bán: ${A.slow90.slice(0,5).map(p=>p.name+' ('+money(p.stock*(p.cost||0))+')').join('; ')}. Cách làm: giảm giá 5–10%, bán kèm combo, đẩy cho khách thợ/công trình, hoặc trả lại nhà cung cấp nếu được.`]);
+  if(A.thinP.length)W.push(['Trung bình',`Rà soát giá các mặt hàng biên lãi dưới 5%: ${A.thinP.slice(0,5).map(p=>p.name+' ('+pcs(p.l,p.m)+')').join('; ')}. Tăng giá nhẹ hoặc đàm phán giá nhập thấp hơn.`]);
+  if(A.pairs.length)W.push(['Trung bình',`Đặt các mặt hàng hay được mua cùng nhau gần nhau và báo kèm khi bán: ${A.pairs.slice(0,3).map(p=>p[0]+' ('+p[1]+' đơn)').join('; ')}.`]);
+  W.push(['Trung bình','Kiểm kê nhanh 10 mặt hàng nhóm A (bán chạy nhất) và đối chiếu với tồn trên phần mềm để phát hiện thất thoát sớm.']);
+  W.push(['Trung bình','Đối chiếu công nợ với từng khách còn nợ, chốt lịch thanh toán; nhà cung cấp cũng vậy để giữ uy tín và hưởng chiết khấu.']);
+  if(A.debtors.length>5)W.push(['Cao',`Có ${A.debtors.length} khách đang nợ. Đặt hạn mức nợ cho từng khách và ngừng bán chịu thêm với khách nợ quá 30 ngày.`]);
+  M.push(['Cao','So sánh lãi gộp, chi phí, công nợ và tồn kho với tháng trước bằng báo cáo này; ghi lại 3 việc làm tốt và 3 việc cần sửa.']);
+  M.push(['Trung bình','Rà lại bảng giá theo từng nhóm khách (lẻ/thợ); điều chỉnh theo giá nhập mới của nhà cung cấp.']);
+  M.push(['Trung bình','Đàm phán lại giá và chiết khấu với 2–3 nhà cung cấp lớn nhất dựa trên sản lượng nhập của tháng.']);
+  M.push(['Thấp','Rà soát danh mục: loại bỏ mặt hàng không bán được, bổ sung mặt hàng khách hay hỏi mà cửa hàng chưa có.']);
+  // chiến lược
+  if(mg<10)ST.push(['Lợi nhuận và giá bán',[`Biên lãi gộp chỉ ${nf(mg)}%, thấp. Ưu tiên tăng biên: tăng giá nhẹ 2–3% cho hàng ít cạnh tranh, giảm tỷ lệ chiết khấu cả đơn (đã giảm tổng ${money(C.disc)} trong kỳ).`,'Đàm phán giá nhập theo sản lượng; so sánh ít nhất 2 nhà cung cấp cho các mặt hàng bán nhiều.']]);
+  else ST.push(['Lợi nhuận và giá bán',[`Biên lãi gộp ${nf(mg)}% ở mức ${mg>=18?'tốt':'chấp nhận được'}. Giữ vững và tăng lãi tuyệt đối bằng cách tăng giá trị mỗi đơn (hiện ${money(C.avg)}/đơn) qua bán kèm và combo theo công trình.`,'Dùng bảng giá thợ cho khách mua số lượng lớn để giữ khách nhưng vẫn kiểm soát biên lãi.']]);
+  const bl=Object.entries(A.byCat).filter(([k,v])=>v.m>0).map(([k,v])=>[k,v.l/v.m*100,v.m]).sort((a,b)=>a[1]-b[1]);
+  if(bl.length>1)ST[ST.length-1][1].push(`Danh mục biên lãi thấp nhất: ${bl[0][0]} (${nf(bl[0][1])}%); cao nhất: ${bl[bl.length-1][0]} (${nf(bl[bl.length-1][1])}%). Đẩy mạnh bán danh mục biên cao, giữ danh mục biên thấp ở mức làm hàng "kéo khách".`);
+  ST.push(['Quản lý tồn kho và vốn',[`Giá trị tồn kho ${money(A.stk)}, tương đương khoảng ${nf(A.stkPeriodDays)} ngày bán. ${A.stkPeriodDays>90?'Tồn kho nhiều, nên giảm lượng nhập mỗi lần.':'Mức tồn kho hợp lý.'}`,`Hàng nhóm A (${A.abc.A} mặt hàng, khoảng 80% doanh thu) luôn phải đủ hàng; nhóm C (${A.abc.C} mặt hàng) chỉ nhập khi có đơn.`,A.slow90.length?`Dừng nhập thêm các mặt hàng chậm bán 90 ngày (${A.slow90.length} mặt hàng), ưu tiên xả để thu hồi vốn.`:'Chưa có hàng chậm bán quá 90 ngày, tiếp tục theo dõi hàng tháng.',`Đặt mức tồn tối thiểu cho từng mặt hàng theo tốc độ bán (bán trung bình × 7–10 ngày) để không hết hàng đột ngột.`]]);
+  ST.push(['Công nợ và dòng tiền',[A.cdebt>0?`Khách nợ ${money(A.cdebt)} (${nf(A.dso)} ngày doanh thu). Mục tiêu: dưới 15 ngày. Đặt hạn mức nợ và hạn thanh toán cho từng khách; thu nợ theo lịch cố định mỗi tuần.`:'Khách hàng hiện không nợ, tiếp tục duy trì chính sách thu tiền ngay.',A.sdebt>0?`Đang nợ nhà cung cấp ${money(A.sdebt)}; sắp xếp thanh toán theo hạn để giữ uy tín và hưởng chiết khấu.`:'Không nợ nhà cung cấp.',`Dòng tiền ước tính kỳ này: thu ${money(A.cin)}, chi ${money(A.cout)}, ${A.cin>=A.cout?'dương':'ÂM'} ${money(Math.abs(A.cin-A.cout))}.`]]);
+  ST.push(['Khách hàng và tăng trưởng',[`Có ${Object.keys(A.byCust).filter(k=>k!=='_le').length} khách có tên mua trong kỳ${A.byCust._le?`, và ${A.byCust._le.n} đơn khách lẻ (${pcs(A.byCust._le.m,C.gross)} doanh thu)`:''}. Ghi tên và số điện thoại cho khách lẻ quay lại để tạo danh sách chăm sóc.`,A.churn.length?`${A.churn.length} khách quen đã trên 45 ngày chưa mua lại. Gọi hỏi thăm mỗi tuần 3–5 khách, ưu tiên khách mua nhiều.`:'Chưa có khách quen nào bỏ đi quá 45 ngày.','Làm quan hệ với thợ xây, chủ thầu, đội thi công: họ giới thiệu nhiều khách và mua số lượng lớn. Có bảng giá thợ và chính sách giao hàng rõ ràng.','Chủ động hỏi nhu cầu theo công trình (gạch, keo, sơn, thiết bị vệ sinh…) để bán trọn gói thay vì từng món.']]);
+  ST.push(['Chi phí vận hành',[`Chi phí kỳ này ${money(C.exp)} (${nf(expR)}% doanh thu).${Object.keys(A.exCat).length?' Khoản lớn nhất: '+Object.entries(A.exCat).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([k,v])=>k+' '+money(v)).join(', ')+'.':''}`,'Ghi mọi khoản chi vào phần mềm ngay trong ngày để lãi ròng phản ánh đúng.','Soát lại các khoản chi cố định (điện, thuê, lương) mỗi quý; gom đơn giao hàng theo tuyến để giảm chi phí vận chuyển.']]);
+  const ts=Object.entries(A.byStaff).sort((a,b)=>b[1].m-a[1].m);
+  ST.push(['Con người và vận hành',[ts.length>1?`Doanh thu theo nhân viên: ${ts.map(([k,v])=>k+' '+money(v.m)).join('; ')}. Chia sẻ cách bán tốt, giao chỉ tiêu bán kèm và thu nợ.`:'Đảm bảo mọi hóa đơn đều ghi tên nhân viên bán để theo dõi hiệu quả.',(()=>{const b=A.band.slice().sort((a,b)=>b.m-a.m)[0];return b&&b.m>0?`Khung giờ bán mạnh nhất: ${String(b.b[0]).padStart(2,'0')}h–${String(b.b[1]).padStart(2,'0')}h. Đảm bảo đủ người và đủ hàng trong khung giờ này.`:'Chưa đủ dữ liệu theo giờ.'})(),'Cuối ngày chốt két: đối chiếu tiền mặt và chuyển khoản với báo cáo doanh thu ngày của phần mềm.']]);
+  // KPI mục tiêu
+  const K=[['Doanh thu kỳ tới',money(C.rev),money(Math.round(C.rev*1.1/1000)*1000),'+10% bằng bán kèm, chăm khách quen, tăng giá trị mỗi đơn'],
+   ['Biên lãi gộp',nf(mg)+'%',nf(Math.max(mg+1,Math.min(mg*1.05,40)))+'%','Tăng giá nhẹ, giảm chiết khấu, đàm phán giá nhập'],
+   ['Công nợ khách hàng',money(A.cdebt),money(Math.round(A.cdebt*0.7/1000)*1000),'Giảm 30% nhờ thu nợ theo lịch hằng tuần'],
+   ['Vốn kẹt trong hàng chậm bán',money(A.slow90.reduce((s,p)=>s+p.stock*(p.cost||0),0)),money(Math.round(A.slow90.reduce((s,p)=>s+p.stock*(p.cost||0),0)*0.6/1000)*1000),'Xả/ trả hàng, giảm 40% trong kỳ tới'],
+   ['Số ngày tồn kho',nf(A.stkPeriodDays)+' ngày',nf(Math.min(A.stkPeriodDays,Math.max(30,A.stkPeriodDays*0.9)))+' ngày','Nhập theo tốc độ bán, đặt mức tồn tối thiểu']];
+  return{H,I,T,W,M,ST,K,mg,expR,retR};
+}
+/* ---------- dựng file .docx ---------- */
+const DX={
+  run:(t,o={})=>`<w:r><w:rPr>${o.b?'<w:b/>':''}${o.i?'<w:i/>':''}${o.c?`<w:color w:val="${o.c}"/>`:''}${o.sz?`<w:sz w:val="${o.sz}"/>`:''}</w:rPr><w:t xml:space="preserve">${xe(t)}</w:t></w:r>`,
+  rich:(t,o={})=>String(t).split('**').map((s,i)=>s?DX.run(s,{...o,b:o.b||i%2===1}):'').join(''),
+  p:(inner,o={})=>`<w:p><w:pPr>${o.st?`<w:pStyle w:val="${o.st}"/>`:''}${o.keep?'<w:keepNext/>':''}${o.pb?'<w:pageBreakBefore/>':''}${o.num?'<w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr>':''}<w:spacing w:before="${o.bf||0}" w:after="${o.af==null?100:o.af}"/>${o.al?`<w:jc w:val="${o.al}"/>`:''}</w:pPr>${inner}</w:p>`,
+  tx:(t,o={})=>DX.p(DX.rich(t,o),o),
+  h1:(t,pb)=>DX.p(DX.run(t),{st:'Heading1',pb}),h2:t=>DX.p(DX.run(t),{st:'Heading2'}),
+  li:t=>DX.p(DX.rich(t),{num:1,af:60}),
+  tbl(heads,rows,o={}){
+    const W=9638,w=o.w||heads.map(()=>1/heads.length),al=o.al||heads.map(()=>'l'),jc={l:'left',r:'right',c:'center'};
+    const cell=(x,i,hd,zi)=>{const v=typeof x==='object'&&x!==null?x:{t:x},fill=hd?'0F766E':v.fill||(zi?'F6F8FA':'FFFFFF');
+      return `<w:tc><w:tcPr><w:tcW w:w="${Math.round(W*w[i])}" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="${fill}"/><w:vAlign w:val="center"/></w:tcPr><w:p><w:pPr><w:spacing w:before="40" w:after="40"/><w:jc w:val="${jc[hd?(al[i]==='r'?'r':al[i]):al[i]]}"/></w:pPr>${DX.rich(v.t==null?'':v.t,{sz:o.sz||19,b:hd||v.b,c:hd?'FFFFFF':v.c})}</w:p></w:tc>`};
+    return `<w:tbl><w:tblPr><w:tblW w:w="${W}" w:type="dxa"/><w:tblBorders>${['top','left','bottom','right','insideH','insideV'].map(b=>`<w:${b} w:val="single" w:sz="4" w:space="0" w:color="D0D5DD"/>`).join('')}</w:tblBorders><w:tblLayout w:type="fixed"/><w:tblCellMar><w:left w:w="80" w:type="dxa"/><w:right w:w="80" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid>${w.map(x=>`<w:gridCol w:w="${Math.round(W*x)}"/>`).join('')}</w:tblGrid>
+    <w:tr><w:trPr><w:cantSplit/><w:tblHeader/></w:trPr>${heads.map((h,i)=>cell(h,i,true)).join('')}</w:tr>${rows.map((r,k)=>`<w:tr><w:trPr><w:cantSplit/></w:trPr>${r.map((x,i)=>cell(x,i,false,k%2)).join('')}</w:tr>`).join('')}</w:tbl>`+DX.p('',{af:80});
+  },
+  tiles(a){
+    const rows=[];for(let i=0;i<a.length;i+=3)rows.push(a.slice(i,i+3));const W=9638/3;
+    return `<w:tbl><w:tblPr><w:tblW w:w="9638" w:type="dxa"/><w:tblBorders>${['top','left','bottom','right','insideH','insideV'].map(b=>`<w:${b} w:val="single" w:sz="12" w:space="0" w:color="FFFFFF"/>`).join('')}</w:tblBorders><w:tblLayout w:type="fixed"/></w:tblPr><w:tblGrid>${[1,2,3].map(()=>`<w:gridCol w:w="${Math.round(W)}"/>`).join('')}</w:tblGrid>${rows.map(r=>`<w:tr><w:trPr><w:cantSplit/></w:trPr>${[0,1,2].map(j=>{const x=r[j];return `<w:tc><w:tcPr><w:tcW w:w="${Math.round(W)}" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="${x?(x[3]||'EAF5F3'):'FFFFFF'}"/></w:tcPr>${x?`<w:p><w:pPr><w:spacing w:before="80" w:after="0"/></w:pPr>${DX.run(x[0],{sz:18,c:'667085'})}</w:p><w:p><w:pPr><w:spacing w:before="0" w:after="0"/></w:pPr>${DX.run(x[1],{b:1,sz:30,c:x[4]||'101828'})}</w:p><w:p><w:pPr><w:spacing w:before="0" w:after="80"/></w:pPr>${DX.run(x[2]||' ',{sz:17,c:'667085'})}</w:p>`:'<w:p/>'}</w:tc>`}).join('')}</w:tr>`).join('')}</w:tbl>`+DX.p('',{af:80});
+  }
+};
+const lvC=l=>({fill:l==='Tốt'?'DCFCE7':l==='Cần chú ý'?'FEF3C7':'FEE2E2',t:l,b:1,c:l==='Tốt'?'166534':l==='Cần chú ý'?'92400E':'991B1B'});
+const priC=p=>({t:p,b:1,c:p==='Cao'?'B42318':p==='Trung bình'?'B54708':'475467'});
+const bar=(v,mx,c='0F766E')=>mx>0&&v>0?{t:'█'.repeat(Math.max(1,Math.round(v/mx*18))),c}:'';
+function rptDoc(A,V){
+  const C=A.C,P=A.P,B=[],shop=db.shop||'Cửa hàng',d=(a,b)=>P?rchg(a,b):'—',mg=V.mg,top=(o,n,f)=>Object.values(o).sort(f).slice(0,n);
+  B.push(DX.p(DX.run(shop.toUpperCase(),{b:1,sz:22,c:'0F766E'}),{af:0}));
+  B.push(DX.p(DX.run('BÁO CÁO TỔNG QUAN KINH DOANH',{b:1,sz:44,c:'101828'}),{af:40}));
+  B.push(DX.p(DX.run(`Kỳ báo cáo: ${A.R.name} (${fmtD(A.R.t0)} – ${fmtD(Math.min(A.R.t1,Date.now()))}, ${A.days} ngày)   |   Xuất lúc ${fmtT(Date.now())}`,{sz:19,c:'667085'}),{af:200}));
+  B.push(DX.h1('1. Tóm tắt điều hành'));
+  B.push(DX.tiles([['Doanh thu',money(C.rev),P?'So với kỳ trước: '+d(C.rev,P.rev):C.n+' hóa đơn'],['Lãi gộp',money(C.lg),'Biên '+nf(mg)+'%'],['Lãi ròng ước tính',money(C.profit),'Sau chi phí '+money(C.exp),C.profit<0?'FEE2E2':'EAF5F3',C.profit<0?'B42318':'101828'],
+    ['Số hóa đơn',nf(C.n),'TB '+money(C.avg)+'/đơn'],['Công nợ khách',money(A.cdebt),A.debtors.length+' khách đang nợ',A.cdebt>0?'FEF3C7':'EAF5F3'],['Giá trị tồn kho',money(A.stk),'Theo giá vốn']]));
+  B.push(DX.h2('Nhận định nổi bật'));V.I.forEach(t=>B.push(DX.li(t)));
+  B.push(DX.h2('Việc cần làm ngay'));
+  V.T.slice(0,5).forEach(([p,t])=>B.push(DX.li(`**[${p}]** ${t}`)));
+  B.push(DX.p(DX.run('Phương pháp: số liệu lấy từ hóa đơn (không tính hóa đơn đã hủy), trả hàng, chi phí, phiếu nhập và tồn kho trong phần mềm. Lãi gộp = giá bán trừ giá vốn tại lúc bán, trừ giảm giá cả đơn và phần hàng trả. Các đề xuất được tạo tự động từ số liệu, hãy cân nhắc thêm tình hình thực tế của cửa hàng.',{i:1,sz:17,c:'667085'}),{bf:80}));
+
+  B.push(DX.h1('2. Kết quả kinh doanh',1));
+  B.push(DX.tbl(['Chỉ tiêu','Kỳ này','Kỳ trước','Thay đổi'],[
+   ['Doanh thu (gồm VAT, phí giao, đã trừ hàng trả)',money(C.rev),P?money(P.rev):'—',d(C.rev,P&&P.rev)],
+   ['Số hóa đơn',nf(C.n),P?nf(P.n):'—',d(C.n,P&&P.n)],['Giá trị trung bình mỗi đơn',money(C.avg),P?money(P.avg):'—',d(C.avg,P&&P.avg)],
+   ['Giá vốn hàng bán',money(C.cogs),P?money(P.cogs):'—',d(C.cogs,P&&P.cogs)],['Lãi gộp',{t:money(C.lg),b:1},P?money(P.lg):'—',d(C.lg,P&&P.lg)],
+   ['Biên lãi gộp',{t:nf(mg)+'%',b:1},P?nf(P.sal>0?P.lg/P.sal*100:0)+'%':'—',P?(mg-(P.sal>0?P.lg/P.sal*100:0)>=0?'+':'')+nf(mg-(P.sal>0?P.lg/P.sal*100:0))+' điểm %':'—'],
+   ['Chi phí hoạt động',money(C.exp),P?money(P.exp):'—',d(C.exp,P&&P.exp)],['Lãi ròng ước tính',{t:money(C.profit),b:1,c:C.profit<0?'B42318':'166534'},P?money(P.profit):'—',P&&P.profit>0?d(C.profit,P.profit):'—'],
+   ['Giảm giá cả đơn',money(C.disc),P?money(P.disc):'—',d(C.disc,P&&P.disc)],['VAT đã thu',money(C.vat),P?money(P.vat):'—','—'],['Phí vận chuyển thu',money(C.fee),P?money(P.fee):'—','—'],
+   ['Hàng trả lại',money(C.ret),P?money(P.ret):'—',pcs(C.ret,C.gross)+' doanh số'],['Hóa đơn đã hủy',nf(C.voidN),P?nf(P.voidN):'—','—']],{w:[.46,.18,.18,.18],al:['l','r','r','r']}));
+  B.push(DX.h2('Dòng tiền ước tính'));
+  B.push(DX.tbl(['Khoản','Số tiền'],[['Tiền thu từ bán hàng (phần đã thanh toán, trừ tiền hoàn khách)',money(C.gross-S0(C.L,v=>v.debt||0)-S0(C.RT,r=>r.total-(r.cut||0)))],['Tiền thu nợ khách',money(A.payIn)],[{t:'Tổng thu',b:1},{t:money(A.cin),b:1}],['Chi phí hoạt động',money(C.exp)],['Tiền đã trả cho nhà cung cấp khi nhập hàng',money(A.imPaid)],['Tiền trả nợ nhà cung cấp',money(A.spOut)],[{t:'Tổng chi',b:1},{t:money(A.cout),b:1}],[{t:'Chênh lệch thu – chi',b:1},{t:money(A.cin-A.cout),b:1,c:A.cin<A.cout?'B42318':'166534'}]],{w:[.7,.3],al:['l','r']}));
+
+  B.push(DX.h1('3. Xu hướng doanh thu',1));
+  const dk=Object.keys(A.byDay).sort();
+  if(A.days<=45){const mx=Math.max(...dk.map(k=>A.byDay[k].m),0);B.push(DX.h2('Doanh thu theo ngày'));B.push(DX.tbl(['Ngày','Đơn','Doanh thu','Lãi gộp',''],dk.map(k=>{const x=A.byDay[k];return[k.split('-').reverse().join('/'),nf(x.n),money(x.m),money(x.l),bar(x.m,mx)]}),{w:[.14,.08,.2,.2,.38],al:['l','r','r','r','l']}))}
+  else{const mk=Object.keys(A.byMon).sort(),mx=Math.max(...mk.map(k=>A.byMon[k].m),0);B.push(DX.h2('Doanh thu theo tháng'));B.push(DX.tbl(['Tháng','Đơn','Doanh thu','Lãi gộp',''],mk.map(k=>{const x=A.byMon[k];return[k.split('-').reverse().join('/'),nf(x.n),money(x.m),money(x.l),bar(x.m,mx)]}),{w:[.12,.08,.2,.2,.4],al:['l','r','r','r','l']}))}
+  const wn=['Chủ nhật','Thứ hai','Thứ ba','Thứ tư','Thứ năm','Thứ sáu','Thứ bảy'],wm=Math.max(...A.byWd.map(x=>x.m),0);
+  B.push(DX.h2('Theo thứ trong tuần'));B.push(DX.tbl(['Thứ','Đơn','Doanh thu',''],[1,2,3,4,5,6,0].map(i=>[wn[i],nf(A.byWd[i].n),money(A.byWd[i].m),bar(A.byWd[i].m,wm,'2563EB')]),{w:[.2,.1,.25,.45],al:['l','r','r','l']}));
+  const bm=Math.max(...A.band.map(x=>x.m),0);
+  B.push(DX.h2('Theo khung giờ'));B.push(DX.tbl(['Khung giờ','Đơn','Doanh thu',''],A.band.map(x=>[`${String(x.b[0]).padStart(2,'0')}h – ${String(x.b[1]).padStart(2,'0')}h`,nf(x.n),money(x.m),bar(x.m,bm,'7C3AED')]),{w:[.2,.1,.25,.45],al:['l','r','r','l']}));
+
+  B.push(DX.h1('4. Danh mục và sản phẩm',1));
+  const cats=Object.entries(A.byCat).sort((a,b)=>b[1].m-a[1].m),ctm=cats.reduce((s,x)=>s+x[1].m,0);
+  B.push(DX.h2('Doanh thu và lãi gộp theo danh mục'));B.push(DX.tbl(['Danh mục','Doanh thu','Tỷ trọng','Lãi gộp','Biên lãi'],cats.map(([k,v])=>[k,money(v.m),pcs(v.m,ctm),money(v.l),{t:pcs(v.l,v.m),c:v.m>0&&v.l/v.m<.08?'B42318':undefined}]),{w:[.32,.2,.12,.2,.16],al:['l','r','r','r','r']}));
+  const pr=Object.values(A.byProd);
+  B.push(DX.h2('Top 10 sản phẩm theo doanh thu'));B.push(DX.tbl(['Sản phẩm','Số lượng','Doanh thu','Lãi gộp','Biên lãi'],pr.sort((a,b)=>b.m-a.m).slice(0,10).map(p=>[p.name,nf(p.q)+' '+p.unit,money(p.m),money(p.l),pcs(p.l,p.m)]),{w:[.36,.15,.17,.17,.15],al:['l','r','r','r','r']}));
+  B.push(DX.h2('Top 10 sản phẩm theo lãi gộp'));B.push(DX.tbl(['Sản phẩm','Số lượng','Lãi gộp','Biên lãi'],pr.slice().sort((a,b)=>b.l-a.l).slice(0,10).map(p=>[p.name,nf(p.q)+' '+p.unit,money(p.l),pcs(p.l,p.m)]),{w:[.4,.2,.22,.18],al:['l','r','r','r']}));
+  if(A.lossP.length||A.thinP.length){B.push(DX.h2('Sản phẩm cần xem lại giá'));B.push(DX.tbl(['Sản phẩm','Doanh thu','Lãi gộp','Biên lãi','Tình trạng'],[...A.lossP.slice(0,8).map(p=>[p.name,money(p.m),money(p.l),pcs(p.l,p.m),{t:'Bán lỗ',b:1,c:'B42318'}]),...A.thinP.slice(0,8).map(p=>[p.name,money(p.m),money(p.l),pcs(p.l,p.m),{t:'Biên dưới 5%',c:'B54708'}])],{w:[.34,.17,.15,.15,.19],al:['l','r','r','r','l']}))}
+  if(A.pairs.length){B.push(DX.h2('Mặt hàng thường được mua cùng nhau'));B.push(DX.tbl(['Cặp sản phẩm','Số đơn mua cùng'],A.pairs.map(p=>[p[0],nf(p[1])]),{w:[.8,.2],al:['l','r']}))}
+
+  B.push(DX.h1('5. Kho hàng',1));
+  B.push(DX.tiles([['Giá trị tồn kho',money(A.stk),'Theo giá vốn'],['Số mặt hàng đang bán',nf(A.act.length),'Còn hàng: '+A.act.filter(p=>p.stock>0).length],['Hết hàng',nf(A.out.length),'Sắp hết: '+A.low.length,A.out.length?'FEE2E2':'EAF5F3'],
+   ['Chậm bán 30 / 60 / 90 ngày',`${A.slow30.length} / ${A.slow60.length} / ${A.slow90.length}`,'mặt hàng còn tồn'],['Số ngày tồn kho',nf(A.stkPeriodDays)+' ngày','Tồn kho / giá vốn bán mỗi ngày'],['Phân loại ABC',`${A.abc.A} / ${A.abc.B} / ${A.abc.C}`,'A ≈ 80% doanh thu, B ≈ 15%, C ≈ 5%']]));
+  if(A.runout.length){B.push(DX.h2('Cần nhập hàng (còn dưới 14 ngày bán)'));B.push(DX.tbl(['Sản phẩm','Tồn','Bán/ngày','Đủ bán','Gợi ý nhập (3 tuần)'],A.runout.slice(0,15).map(x=>[x.p.name,nf(x.p.stock)+' '+x.p.unit,nf(x.v),x.p.stock<=0?{t:'Hết hàng',b:1,c:'B42318'}:nf(x.left)+' ngày',nf(Math.max(1,Math.ceil(x.v*21-Math.max(0,x.p.stock))))+' '+x.p.unit]),{w:[.34,.16,.14,.16,.2],al:['l','r','r','r','r']}))}
+  if(A.slow90.length){B.push(DX.h2('Hàng chậm bán 90 ngày (vốn bị kẹt nhiều nhất)'));B.push(DX.tbl(['Sản phẩm','Tồn','Vốn tồn','Lần bán gần nhất'],A.slow90.slice(0,15).map(p=>[p.name,nf(p.stock)+' '+p.unit,money(p.stock*(p.cost||0)),A.last[p.id]?fmtD(A.last[p.id]):'Chưa bán']),{w:[.4,.18,.22,.2],al:['l','r','r','r']}))}
+  if(A.out.length||A.low.length){B.push(DX.h2('Danh sách hết hàng và sắp hết'));B.push(DX.tbl(['Sản phẩm','Tồn','Mức tối thiểu','Tình trạng'],[...A.out.slice(0,15),...A.low.slice(0,15)].map(p=>[p.name,nf(p.stock)+' '+p.unit,nf(p.min||5),p.stock<=0?{t:'Hết hàng',b:1,c:'B42318'}:{t:'Sắp hết',c:'B54708'}]),{w:[.42,.2,.18,.2],al:['l','r','r','l']}))}
+  if(A.imTot>0||Object.keys(A.bySup).length){B.push(DX.h2('Nhập hàng trong kỳ'));B.push(DX.tbl(['Nhà cung cấp','Số phiếu','Giá trị nhập'],Object.entries(A.bySup).sort((a,b)=>b[1].m-a[1].m).slice(0,10).map(([k,v])=>[k,nf(v.n),money(v.m)]).concat([[{t:'Tổng nhập',b:1},'',{t:money(A.imTot),b:1}]]),{w:[.55,.15,.3],al:['l','r','r']}))}
+
+  B.push(DX.h1('6. Khách hàng và công nợ',1));
+  const cs=top(A.byCust,10,(a,b)=>b.m-a.m);
+  B.push(DX.h2('Top khách hàng trong kỳ'));B.push(DX.tbl(['Khách hàng','Số đơn','Tổng mua','Lần mua gần nhất'],cs.map(c=>[c.name,nf(c.n),money(c.m),fmtD(c.last)]),{w:[.4,.12,.25,.23],al:['l','r','r','r']}));
+  if(A.debtors.length){B.push(DX.h2('Khách đang nợ'));B.push(DX.tbl(['Khách hàng','Điện thoại','Công nợ','Nợ lâu nhất'],A.debtors.slice(0,15).map(x=>[x.c.name,x.c.phone||'',money(x.c.debt),{t:x.age+' ngày',c:x.age>30?'B42318':undefined}]).concat([[{t:'Tổng công nợ',b:1},'',{t:money(A.cdebt),b:1},'']]),{w:[.34,.2,.26,.2],al:['l','l','r','r']}))}
+  if(A.churn.length){B.push(DX.h2('Khách quen lâu chưa mua lại (trên 45 ngày)'));B.push(DX.tbl(['Khách hàng','Điện thoại','Đã mua tổng cộng','Chưa mua'],A.churn.slice(0,10).map(x=>[x.c.name,x.c.phone||'',money(x.m),x.days+' ngày']),{w:[.34,.22,.26,.18],al:['l','l','r','r']}))}
+  if(A.sdebt>0){B.push(DX.h2('Nợ nhà cung cấp'));B.push(DX.tbl(['Nhà cung cấp','Công nợ'],db.suppliers.filter(s=>s.debt>0).sort((a,b)=>b.debt-a.debt).map(s=>[s.name,money(s.debt)]).concat([[{t:'Tổng',b:1},{t:money(A.sdebt),b:1}]]),{w:[.7,.3],al:['l','r']}))}
+
+  B.push(DX.h1('7. Chi phí, nhân viên, thanh toán',1));
+  const ec=Object.entries(A.exCat).sort((a,b)=>b[1]-a[1]);
+  B.push(DX.h2('Chi phí theo loại'));B.push(DX.tbl(['Loại chi phí','Số tiền','% doanh thu'],ec.length?ec.map(([k,v])=>[k,money(v),pcs(v,C.rev)]).concat([[{t:'Tổng',b:1},{t:money(C.exp),b:1},{t:pcs(C.exp,C.rev),b:1}]]):[['Chưa ghi nhận chi phí trong kỳ','','']],{w:[.5,.27,.23],al:['l','r','r']}));
+  const sf=Object.entries(A.byStaff).sort((a,b)=>b[1].m-a[1].m);
+  B.push(DX.h2('Hiệu quả theo nhân viên'));B.push(DX.tbl(['Nhân viên','Số đơn','Doanh thu','Lãi gộp'],sf.map(([k,v])=>[k,nf(v.n),money(v.m),money(v.l)]),{w:[.4,.12,.25,.23],al:['l','r','r','r']}));
+  B.push(DX.h2('Hình thức thanh toán'));B.push(DX.tbl(['Hình thức','Số đơn','Giá trị','Tỷ trọng'],Object.entries(A.byMeth).sort((a,b)=>b[1].m-a[1].m).map(([k,v])=>[k,nf(v.n),money(v.m),pcs(v.m,C.gross)]),{w:[.4,.15,.25,.2],al:['l','r','r','r']}));
+
+  B.push(DX.h1('8. Đánh giá sức khỏe cửa hàng',1));
+  B.push(DX.tx('Các chỉ số dưới đây so với ngưỡng tham khảo cho cửa hàng vật liệu xây dựng và thiết bị. Ngưỡng chỉ mang tính tham khảo, hãy điều chỉnh theo thực tế của bạn.',{sz:19,c:'475467'}));
+  B.push(DX.tbl(['Chỉ số','Hiện tại','Ngưỡng tham khảo','Đánh giá'],V.H.map(h=>[h[0],{t:h[1],b:1},h[2],lvC(h[3])]),{w:[.34,.2,.28,.18],al:['l','r','l','c']}));
+
+  B.push(DX.h1('9. Kế hoạch hành động và chiến lược cải thiện',1));
+  B.push(DX.h2('A. Việc cần làm hôm nay (rút ra từ số liệu)'));B.push(DX.tbl(['Ưu tiên','Việc cần làm'],V.T.map(x=>[priC(x[0]),x[1]]),{w:[.14,.86],al:['c','l']}));
+  B.push(DX.h2('B. Thói quen mỗi ngày'));
+  ['Đầu ngày: xem danh sách hàng sắp hết, nhập hoặc đặt hàng trước khi khách hỏi không có.','Trong ngày: ghi hóa đơn đủ và đúng (đúng khách, đúng nhân viên, đúng giá); khách lẻ quay lại thì xin tên và số điện thoại.','Mỗi khách hỏi một món: gợi ý thêm món đi kèm (ví dụ gạch thì kèm keo, ron; sơn thì kèm cọ, bột trét).','Cuối ngày: chốt két, đối chiếu tiền mặt và chuyển khoản với doanh thu ngày; ghi hết chi phí trong ngày.','Cuối ngày: xem báo cáo doanh thu, lãi gộp và công nợ phát sinh; ghi chú một điều cần cải thiện cho ngày mai.','Mỗi ngày gọi nhắc 2–3 khách còn nợ hoặc khách quen lâu chưa quay lại.'].forEach(t=>B.push(DX.li(t)));
+  B.push(DX.h2('C. Việc cần làm trong tuần'));B.push(DX.tbl(['Ưu tiên','Việc cần làm'],V.W.map(x=>[priC(x[0]),x[1]]),{w:[.14,.86],al:['c','l']}));
+  B.push(DX.h2('D. Việc cần làm trong tháng'));B.push(DX.tbl(['Ưu tiên','Việc cần làm'],V.M.map(x=>[priC(x[0]),x[1]]),{w:[.14,.86],al:['c','l']}));
+  B.push(DX.h2('E. Chiến lược theo từng mảng'));
+  V.ST.forEach(([t,a])=>{B.push(DX.p(DX.run(t,{b:1,c:'134E4A',sz:23}),{keep:1,bf:80,af:40}));a.forEach(x=>B.push(DX.li(x)))});
+  B.push(DX.h2('F. Mục tiêu đề xuất cho kỳ tới'));
+  B.push(DX.tbl(['Chỉ tiêu','Hiện tại','Mục tiêu','Cách đạt'],V.K,{w:[.24,.2,.2,.36],al:['l','r','r','l']}));
+  B.push(DX.tx('Gợi ý cách theo dõi: mỗi tuần xuất lại báo cáo này (chọn "30 ngày gần nhất"), so sánh với tuần trước và đánh dấu mục tiêu nào đã đạt.',{i:1,sz:18,c:'667085'}));
+  return B.join('');
+}
+const S0=(a,f)=>a.reduce((s,x)=>s+f(x),0);
+function rptFiles(body,shop){
+  const NS='xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"',H='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
+  const f=(n,s)=>({name:n,data:te.encode(s)});
+  return[
+   f('[Content_Types].xml',H+'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/><Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/><Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/></Types>'),
+   f('_rels/.rels',H+'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>'),
+   f('word/_rels/document.xml.rels',H+'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/></Relationships>'),
+   f('word/document.xml',H+`<w:document ${NS}><w:body>${body}<w:sectPr><w:footerReference w:type="default" r:id="rId3"/><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="567" w:footer="567" w:gutter="0"/></w:sectPr></w:body></w:document>`),
+   f('word/styles.xml',H+`<w:styles ${NS}><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:eastAsia="Calibri" w:cs="Calibri"/><w:sz w:val="22"/><w:lang w:val="vi-VN"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after="100" w:line="276" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults><w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style><w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="heading 1"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:qFormat/><w:pPr><w:keepNext/><w:pBdr><w:bottom w:val="single" w:sz="8" w:space="2" w:color="0F766E"/></w:pBdr><w:spacing w:before="300" w:after="160"/><w:outlineLvl w:val="0"/></w:pPr><w:rPr><w:b/><w:color w:val="0F766E"/><w:sz w:val="34"/></w:rPr></w:style><w:style w:type="paragraph" w:styleId="Heading2"><w:name w:val="heading 2"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:qFormat/><w:pPr><w:keepNext/><w:spacing w:before="220" w:after="100"/><w:outlineLvl w:val="1"/></w:pPr><w:rPr><w:b/><w:color w:val="134E4A"/><w:sz w:val="26"/></w:rPr></w:style></w:styles>`),
+   f('word/numbering.xml',H+`<w:numbering ${NS}><w:abstractNum w:abstractNumId="0"><w:multiLevelType w:val="hybridMultilevel"/><w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="bullet"/><w:lvlText w:val="•"/><w:lvlJc w:val="left"/><w:pPr><w:ind w:left="500" w:hanging="260"/></w:pPr><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/><w:color w:val="0F766E"/></w:rPr></w:lvl></w:abstractNum><w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num></w:numbering>`),
+   f('word/footer1.xml',H+`<w:ftr ${NS}><w:p><w:pPr><w:jc w:val="center"/></w:pPr>${DX.run((shop||'')+'  |  Báo cáo tổng quan  |  Trang ',{sz:16,c:'667085'})}<w:fldSimple w:instr=" PAGE "><w:r><w:rPr><w:sz w:val="16"/><w:color w:val="667085"/></w:rPr><w:t>1</w:t></w:r></w:fldSimple></w:p></w:ftr>`)];
+}
+async function makeReport(key){
+  try{
+    if(!db.invoices.length)return alert('Chưa có dữ liệu bán hàng để lập báo cáo.');
+    const A=rptAnalyze(key),V=rptAdvise(A),blob=new Blob([zipStore(rptFiles(rptDoc(A,V),db.shop))],{type:DMIME});
+    await dl(`bao-cao-tong-quan-${stamp()}.docx`,blob,DMIME);toast('Đã tạo báo cáo tổng quan');
+  }catch(e){console.error(e);alert('Không tạo được báo cáo: '+(e&&e.message||e))}
+}
+
 const IOS=/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
 async function dl(name,text,type){
   if(IOS&&navigator.canShare&&window.File){
@@ -1813,6 +2068,7 @@ document.addEventListener('click',e=>{
   else if(d.count)countStock(d.count);
   else if('savecust' in d)saveCust();
   else if(d.editc){editC=d.editc;custView();scrollTo(0,0)}
+  else if('rpt' in d)makeReport($('#rptp').value);
   else if(d.hist){histC=d.hist;custView();const h=$('#chist');if(h)h.scrollIntoView({behavior:'smooth',block:'start'})}
   else if('histx' in d){histC=null;custView()}
   else if(d.rgo){retNo=d.rgo;retEdit=null;retTime='';histC=null;go('returns');scrollTo(0,0)}
