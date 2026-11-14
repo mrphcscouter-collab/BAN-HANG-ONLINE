@@ -69,7 +69,7 @@ td button{padding:5px 10px;font-size:13px;margin-left:4px}
 .ics{font-size:14px}.im{font-size:13px;color:var(--mute)}.itg{display:flex;flex-wrap:wrap;gap:6px}
 .tag.dbt{background:#fde8e6;color:var(--red)}.tag.rt{background:#fff4d6;color:#8a5a00}.tag.ed{background:#eaf0f6;color:#475467}
 .iit{background:#f6f8fa;border-radius:8px;padding:6px 10px;font-size:14px}.iit>div{display:flex;justify-content:space-between;gap:12px;padding:3px 0}.iit>div+div{border-top:1px dashed var(--line)}.iit b{white-space:nowrap}
-.iac{display:flex;gap:8px;margin-top:4px}.iac button{flex:1;padding:8px 10px;margin:0}
+.iac{display:flex;gap:8px;margin-top:4px}.iac button{flex:1;padding:8px 4px;margin:0;white-space:nowrap}.ics a{color:var(--ac);font-weight:600;text-decoration:none}
 
 .acts{display:flex;flex-wrap:nowrap;gap:4px;justify-content:flex-end}.acts button{margin:0;white-space:nowrap}td.act{white-space:nowrap;width:1%}
 .rp{display:block;width:100%;text-align:left;background:#fff;border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:8px;color:inherit;font:inherit}.rp:hover{border-color:var(--ac);background:#f0f8f7}.rp .r1{display:flex;justify-content:space-between;gap:10px;font-weight:700}.rp .r2{color:var(--mute);font-size:13px;margin-top:2px}.rp .r3{font-size:13px;margin-top:4px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
@@ -309,7 +309,7 @@ const ensureCat=pa=>{let cur='';pa.split('>').map(x=>x.trim()).filter(Boolean).s
 let af={},uRows=[],sRows=[];
 const prod=id=>db.products.find(p=>p.id===id);
 
-let histC=null,pAddOpen=false,tab='sell',q='',editing=null,editC=null,cat='',fc='',orders=[],cur=0,orderSeq=0,hi=0;
+let histC=null,custQ='',pAddOpen=false,tab='sell',q='',editing=null,editC=null,cat='',fc='',orders=[],cur=0,orderSeq=0,hi=0;
 
 function go(t){
   tab=t;$('#shopname').textContent=db.shop;
@@ -1064,9 +1064,18 @@ function custView(){
   const e=db.customers.find(x=>x.id===editC),debt=db.customers.reduce((s,c)=>s+(c.debt||0),0);
   $('#main').innerHTML=`<div class="card"><h2>${e?'Sửa khách hàng':'Thêm khách hàng'}</h2><div class="form" style="grid-template-columns:2fr 1fr 2fr 1fr auto auto"><label>Tên<input id="cn"></label><label>Số điện thoại<input id="cp"></label><label>Địa chỉ<input id="ca"></label><label>Ghi chú<input id="cno"></label><button class="pri" data-savecust>${e?'Lưu thay đổi':'Thêm'}</button>${e?'<button class="ghost" data-cancelc>Hủy</button>':'<span></span>'}</div></div>
   ${custHist()}
-  <div class="card"><h2>Danh sách khách hàng (tổng nợ ${money(debt)})</h2><table><tr><th>Tên</th><th>Điện thoại</th><th>Địa chỉ</th><th class="n">Đã mua</th><th class="n">Công nợ</th><th></th></tr>${db.customers.map(c=>`<tr><td><button class="ghost" data-hist="${c.id}" style="border:0;padding:0;margin:0;background:none;text-align:left;font-size:inherit;text-decoration:underline">${esc(c.name)}</button>${c.note?'<br><small>'+esc(c.note)+'</small>':''}</td><td>${esc(c.phone||'')}</td><td>${esc(c.addr||'')}</td><td class="n">${money(db.invoices.filter(v=>v.cid===c.id&&!v.void).reduce((s,v)=>s+v.total,0))}</td><td class="n ${c.debt>0?'low':''}">${money(c.debt||0)}</td><td class="n act"><div class="acts"><button class="ghost" data-hist="${c.id}">Lịch sử</button>${c.debt>0?`<button class="ghost" data-paydebt="${c.id}">Thu nợ</button>`:''}<button class="ghost" data-editc="${c.id}">Sửa</button><button class="ghost danger" data-delc="${c.id}">Xóa</button></div></td></tr>`).join('')||'<tr><td colspan="6" class="empty">Chưa có khách hàng. Thêm khách để theo dõi lịch sử mua và ghi nợ.</td></tr>'}</table></div>
+  <div class="card"><h2>Danh sách khách hàng (${db.customers.length}, tổng nợ ${money(debt)})</h2><input id="cq" value="${esc(custQ)}" placeholder="Tìm theo tên, số điện thoại, địa chỉ" autocomplete="off" style="margin:6px 0 12px"><div class="ivl" id="clist">${custList()}</div></div>
   <div class="card"><h2>Lịch sử thu nợ</h2><table><tr><th>Thời gian</th><th>Khách hàng</th><th class="n">Số tiền</th></tr>${db.pays.slice(0,15).map(x=>`<tr><td>${fmtT(x.time)}</td><td>${esc(x.name)}</td><td class="n">${money(x.amt)}</td></tr>`).join('')||'<tr><td colspan="3" class="empty">Chưa có lần thu nợ nào.</td></tr>'}</table></div>`;
   if(e){$('#cn').value=e.name;$('#cp').value=e.phone||'';$('#ca').value=e.addr||'';$('#cno').value=e.note||''}
+  $('#cq').oninput=ev=>{custQ=ev.target.value;$('#clist').innerHTML=custList()};
+}
+function custList(){
+  const k=nz(custQ).trim(),L=db.customers.filter(c=>!k||nz([c.name,c.phone,c.addr,c.note].join(' ')).includes(k));
+  return L.map(c=>{const buy=db.invoices.filter(v=>v.cid===c.id&&!v.void).reduce((t,v)=>t+v.total,0);
+   return `<div class="ic"><div class="ih"><b class="ino" style="color:var(--text,inherit)">${esc(c.name)}</b>${c.debt>0?`<span class="tag dbt">Nợ ${money(c.debt)}</span>`:''}</div>
+   ${c.phone?`<div class="ics">📞 <a href="tel:${esc(c.phone.replace(/\s/g,''))}">${esc(c.phone)}</a></div>`:''}${c.addr?`<div class="ics">📍 ${esc(c.addr)}</div>`:''}${c.note?`<div class="im">${esc(c.note)}</div>`:''}
+   <div class="im">Đã mua: <b>${money(buy)}</b></div>
+   <div class="iac"><button class="ghost" data-hist="${c.id}">Lịch sử</button>${c.debt>0?`<button class="ghost" data-paydebt="${c.id}">Thu nợ</button>`:''}<button class="ghost" data-editc="${c.id}">Sửa</button><button class="ghost danger" data-delc="${c.id}">Xóa</button></div></div>`}).join('')||'<div class="empty">'+(custQ?'Không tìm thấy khách phù hợp.':'Chưa có khách hàng. Thêm khách để theo dõi lịch sử mua và ghi nợ.')+'</div>';
 }
 function custHist(){
   const c=db.customers.find(x=>x.id===histC);if(!c)return '';
