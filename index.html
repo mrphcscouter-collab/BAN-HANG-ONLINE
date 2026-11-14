@@ -62,6 +62,15 @@ th,td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--line);vertic
 th{font-size:13px;color:var(--mute);font-weight:600}
 td.n,th.n{text-align:right}
 td button{padding:5px 10px;font-size:13px;margin-left:4px}
+.ivl{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px}
+.ic{border:1px solid var(--line);border-radius:10px;padding:12px;background:#fff;display:flex;flex-direction:column;gap:6px}
+.ic.void{background:#fafafa}.ic.void .ih,.ic.void .iit,.ic.void .ics{opacity:.55}.ic.void .ino{text-decoration:line-through}
+.ih{display:flex;justify-content:space-between;align-items:baseline;gap:10px}.ino{font-size:16px;color:var(--ac)}.itot{font-size:18px}
+.ics{font-size:14px}.im{font-size:13px;color:var(--mute)}.itg{display:flex;flex-wrap:wrap;gap:6px}
+.tag.dbt{background:#fde8e6;color:var(--red)}.tag.rt{background:#fff4d6;color:#8a5a00}.tag.ed{background:#eaf0f6;color:#475467}
+.iit{background:#f6f8fa;border-radius:8px;padding:6px 10px;font-size:14px}.iit>div{display:flex;justify-content:space-between;gap:12px;padding:3px 0}.iit>div+div{border-top:1px dashed var(--line)}.iit b{white-space:nowrap}
+.iac{display:flex;gap:8px;margin-top:4px}.iac button{flex:1;padding:8px 10px;margin:0}
+
 .acts{display:flex;flex-wrap:nowrap;gap:4px;justify-content:flex-end}.acts button{margin:0;white-space:nowrap}td.act{white-space:nowrap;width:1%}
 .rp{display:block;width:100%;text-align:left;background:#fff;border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:8px;color:inherit;font:inherit}.rp:hover{border-color:var(--ac);background:#f0f8f7}.rp .r1{display:flex;justify-content:space-between;gap:10px;font-weight:700}.rp .r2{color:var(--mute);font-size:13px;margin-top:2px}.rp .r3{font-size:13px;margin-top:4px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .rsel{display:flex;justify-content:space-between;align-items:center;gap:10px;background:#f0f8f7;border:1px solid var(--ac);border-radius:8px;padding:10px 12px;margin:10px 0}
@@ -798,9 +807,15 @@ const live=()=>db.invoices.filter(v=>!v.void);
 const MT={cash:'Tiền mặt',bank:'Chuyển khoản',card:'Thẻ'};
 function invoices(){
   const nv=db.invoices.length-live().length;
-  $('#main').innerHTML=`<div class="card"><div class="tools" style="justify-content:space-between;align-items:center;margin-bottom:10px"><h2 style="margin:0">Hóa đơn (${live().length} hiệu lực${nv?', '+nv+' đã hủy':''})</h2>${paperSel()}</div><table><tr><th>Số</th><th>Thời gian</th><th>Hàng hóa</th><th class="n">Tổng tiền</th><th></th></tr>
-  ${db.invoices.map(v=>{const m=[v.cid?esc(v.cname)+(v.debt?' <b class="low">còn nợ '+money(v.debt)+'</b>':''):'',v.vat?'VAT '+v.vatp+'%: '+money(v.vat):'',v.addr?'Giao đến: '+esc(v.addr):'',v.note?'Ghi chú: '+esc(v.note):'',MT[v.method]||'Tiền mặt',v.staff?'NV: '+esc(v.staff):'',v.items.some(i=>i.ret)?'Có trả hàng':'',v.edited?'Đã sửa lúc '+fmtT(v.edited):''].filter(Boolean).join(' | ');
-   return `<tr class="${v.void?'void':''}"><td>${v.no}${v.void?' <span class="tag">Đã hủy</span>':''}</td><td>${fmtT(v.time)}</td><td>${esc(v.items.map(i=>i.name+(i.note?' ['+i.note+']':'')+' ×'+ln(i,'price').q+(i.un?' '+i.un:'')).join(', '))}<br><small>${m}</small></td><td class="n">${money(v.total)}</td><td class="n act"><div class="acts"><button class="ghost" data-print="${v.no}">In</button>${v.void?'':`<button class="ghost" data-sedit="${v.no}">Sửa</button><button class="ghost danger" data-void="${v.no}">Hủy</button>`}</div></td></tr>`}).join('')||'<tr><td colspan="5" class="empty">Chưa có hóa đơn. Hóa đơn xuất hiện sau khi bạn thanh toán một đơn hàng.</td></tr>'}</table></div>`;
+  $('#main').innerHTML=`<div class="card"><div class="tools" style="justify-content:space-between;align-items:center;margin-bottom:10px"><h2 style="margin:0">Hóa đơn (${live().length} hiệu lực${nv?', '+nv+' đã hủy':''})</h2>${paperSel()}</div>
+  <div class="ivl">${db.invoices.map(v=>{
+   const meta=[fmtT(v.time),MT[v.method]||'Tiền mặt',v.staff?'NV: '+esc(v.staff):''].filter(Boolean).join(' · '),
+   tags=[v.void?'<span class="tag">Đã hủy</span>':'',v.debt&&!v.void?'<span class="tag dbt">Còn nợ '+money(v.debt)+'</span>':'',v.items.some(i=>i.ret)?'<span class="tag rt">Có trả hàng</span>':'',v.edited?'<span class="tag ed">Đã sửa</span>':''].filter(Boolean).join(''),
+   ex=[v.vat?'VAT '+v.vatp+'%: '+money(v.vat):'',v.addr?'Giao đến: '+esc(v.addr):'',v.note?'Ghi chú: '+esc(v.note):''].filter(Boolean).join(' · ');
+   return `<div class="ic ${v.void?'void':''}"><div class="ih"><b class="ino">${v.no}</b><b class="itot">${money(v.total)}</b></div>
+   <div class="ics">${v.cid?'<b>'+esc(v.cname)+'</b>':'Khách lẻ'}</div><div class="im">${meta}</div>${tags?`<div class="itg">${tags}</div>`:''}
+   <div class="iit">${v.items.map(i=>{const q=ln(i,'price');return `<div><span>${esc(i.name+(i.note?' ['+i.note+']':''))}</span><b>×${q.q}${q.u?' '+esc(q.u):''}</b></div>`}).join('')}</div>${ex?`<div class="im">${ex}</div>`:''}
+   <div class="iac"><button class="ghost" data-print="${v.no}">In</button>${v.void?'':`<button class="ghost" data-sedit="${v.no}">Sửa</button><button class="ghost danger" data-void="${v.no}">Hủy</button>`}</div></div>`}).join('')||'<div class="empty">Chưa có hóa đơn. Hóa đơn xuất hiện sau khi bạn thanh toán một đơn hàng.</div>'}</div></div>`;
 }
 function voidInv(no){
   const v=db.invoices.find(x=>x.no===no);if(!v||v.void)return;
