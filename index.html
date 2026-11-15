@@ -1799,7 +1799,7 @@ async function gPush(id){
 }
 function gApply(d){
   if(!d||!d.products||!d.invoices)throw new Error('File trên Drive không đúng định dạng dữ liệu bán hàng.');
-  db=d;norm();
+  const before=JSON.stringify(db);db=d;norm();
   orders.forEach(o=>{o.lines=o.lines.filter(i=>prod(i.id));if(o.cid&&!db.customers.some(c=>c.id===o.cid))o.cid=''});
   cur=Math.min(cur,orders.length-1);
   if(idb){try{idb.transaction('kv','readwrite').objectStore('kv').put(db,'db')}catch(e){}}
@@ -1808,7 +1808,14 @@ function gApply(d){
   const ae=document.activeElement;
   const formOpen=(tab==='products'&&(pAddOpen||editing||(typeof cloneFrom!=='undefined'&&cloneFrom)))||(tab==='customers'&&(editC||($('#cn')&&$('#cn').value.trim())));
   if(tab!=='sell'&&(formOpen||(ae&&/INPUT|SELECT|TEXTAREA/.test(ae.tagName)&&ae.closest('#main')))){toast('Có dữ liệu mới từ máy khác. Dữ liệu đã được cập nhật ngầm, màn hình sẽ làm mới khi bạn lưu, đóng form hoặc chuyển thẻ.');return}
+  if(before===JSON.stringify(db))return; /* dữ liệu giống hệt: không cần vẽ lại */
+  /* vẽ lại nhưng giữ nguyên vị trí cuộn (cả trang lẫn các bảng cuộn ngang) và ô đang gõ */
+  const sx=scrollX,sy=scrollY,sc=[...document.querySelectorAll('#main *')].map((el,i)=>el.scrollLeft||el.scrollTop?[i,el.scrollLeft,el.scrollTop]:null).filter(Boolean),
+   fid=ae&&ae.id&&ae.closest&&ae.closest('#main')?ae.id:'',fs=fid&&ae.selectionStart!=null?[ae.selectionStart,ae.selectionEnd]:null;
   try{go(tab)}catch(e){go('sell')}
+  const back=()=>{scrollTo(sx,sy);const all=document.querySelectorAll('#main *');sc.forEach(([i,l,t])=>{const el=all[i];if(el){el.scrollLeft=l;el.scrollTop=t}})};
+  back();requestAnimationFrame(back);setTimeout(back,120);
+  if(fid){const el=document.getElementById(fid);if(el){try{el.focus({preventScroll:true});if(fs)el.setSelectionRange(fs[0],fs[1])}catch(e){}}}
 }
 async function gPullTo(id){
   const m=await gMeta(id),d=await gDown(id);
