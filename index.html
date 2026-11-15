@@ -290,8 +290,18 @@ const pr=p=>O().tier==='w'&&p.wprice?p.wprice:p.price;
 const rd6=n=>Math.round(n*1e6)/1e6;
 /* Đơn vị cơ sở = p.unit. p.units = [{name,per}]: 1 name = per đơn vị liền trước (cấp 1 tính theo đơn vị cơ sở) */
 const urates=p=>{let r=1;const o=[{name:p.unit,rate:1}];(p.units||[]).forEach(u=>{r=rd6(r*u.per);o.push({name:u.name,rate:r,u})});(p.subs||[]).forEach(u=>{if(u.per>0)o.push({name:u.name,rate:rd6(1/u.per),u})});return o};
-const fmtU=(p,q)=>{const us=urates(p).sort((a,b)=>b.rate-a.rate);let r=rd6(q);const out=[];us.forEach((u,i)=>{if(i===us.length-1){const v=rdp(r/u.rate);if(v||!out.length)out.push(v+' '+u.name)}else{const n=Math.floor(r/u.rate+1e-9);if(n>0){out.push(n+' '+u.name);r=rd6(r-n*u.rate)}}});return out.join(' ')};
-const stk=(p,q)=>{q=q==null?p.stock:q;return q>0&&((p.units||[]).length||(p.subs||[]).some(u=>u.per>0))?fmtU(p,q):rd(q)+' '+p.unit};
+/* Quy đổi để đối chiếu: đơn vị quy đổi lớn nhất (nếu có) + đơn vị nhỏ (nếu có), vd "2 Thùng 1.52 viên"; bỏ qua đơn vị cơ sở ở giữa */
+const fmtU=(p,q)=>{
+  const ur=urates(p);if(ur.length<2)return rd(q)+' '+p.unit;
+  const big=ur.reduce((a,x)=>x.rate>a.rate?x:a,ur[0]),sm=ur.find(x=>x.rate<1),lo=sm||ur[0];
+  const sg=q<0?'-':'',tot=Math.round(Math.abs(q)/lo.rate*100)/100,ratio=big.rate/lo.rate,n=Math.floor(tot/ratio+1e-9),rest=Math.round((tot-n*ratio)*100)/100,out=[];
+  if(n>0)out.push(n+' '+big.name);
+  if(rest>0)out.push(rest+' '+lo.name);
+  return sg+(out.join(' ')||('0 '+big.name));
+};
+const hasU=p=>(p.units||[]).length||(p.subs||[]).some(u=>u.per>0);
+const stk=(p,q)=>{q=q==null?p.stock:q;const b=rd(q)+' '+p.unit;return q>0&&hasU(p)?b+' (= '+fmtU(p,q)+')':b};
+const stk2=(p,q)=>{q=q==null?p.stock:q;return `<b>${esc(rd(q)+' '+p.unit)}</b>`+(q>0&&hasU(p)?`<br><small>= ${esc(fmtU(p,q))}</small>`:'')};
 const hint=(p,q)=>((p.units||[]).length||(p.subs||[]).length)?', ≈ '+fmtU(p,q):'';
 const unitsTxt=p=>[...(p.units||[]).map((u,i)=>'1 '+u.name+' = '+u.per+' '+(i?p.units[i-1].name:p.unit)),...(p.subs||[]).filter(u=>u.per>0).map(u=>u.dir==='small'?'1 '+u.name+' = '+u.v+' '+p.unit:'1 '+p.unit+' = '+u.per+' '+u.name)].join('; ');
 const ln=(i,pk)=>i.un&&i.uq>0?{q:rd(i.uq),u:i.un,pr:Math.round(i[pk]*i.qty/i.uq)}:{q:rd(i.qty),u:i.unit||'',pr:i[pk]};
@@ -593,7 +603,7 @@ function products(){
 function drawPL(){
   const k=nz(pSearch),L=db.products.filter(p=>inCat(p,fc)&&attrOK(p)&&(!k||nz(ptext(p)).includes(k))&&stOK(p,pSt)),g=pager('pl',L.length);
   $('#plist').innerHTML=`<table class="ptab"><tr><th>Sản phẩm</th><th>Danh mục</th><th>ĐVT</th><th class="n">Giá vốn</th><th class="n">Giá lẻ</th><th class="n">Giá thợ</th><th class="n">Tồn</th><th></th></tr>
-  ${L.slice(g.from,g.from+50).map(p=>`<tr><td>${esc(p.name)}${p.status==='off'?' <span class="tag">Ngừng bán</span>':''}<br><small>${esc([p.code,p.barcode,pdesc(p)].filter(Boolean).join(', '))}</small></td><td>${esc(p.cat||'—')}</td><td>${esc(p.unit)}${(p.units||[]).length?'<br><small>'+esc(unitsTxt(p))+'</small>':''}</td><td class="n">${money(p.cost)}</td><td class="n">${money(p.price)}${uPriceTxt(p)}</td><td class="n">${p.wprice?money(p.wprice):'—'}</td><td class="n ${p.stock<=(p.min||5)?'low':''}">${esc(stk(p))}</td><td class="n pact"><button class="ghost" data-edit="${p.id}">Sửa</button><button class="ghost" data-clone="${p.id}">Sao chép</button><button class="ghost" data-pstat="${p.id}">${p.status==='off'?'Bán lại':'Ngừng bán'}</button><button class="ghost danger" data-delprod="${p.id}">Xóa</button></td></tr>`).join('')||'<tr><td colspan="8" class="empty">Không có sản phẩm phù hợp. Điền thông tin ở trên rồi bấm Thêm, hoặc nhập từ file CSV.</td></tr>'}</table>${g.html}`;
+  ${L.slice(g.from,g.from+50).map(p=>`<tr><td>${esc(p.name)}${p.status==='off'?' <span class="tag">Ngừng bán</span>':''}<br><small>${esc([p.code,p.barcode,pdesc(p)].filter(Boolean).join(', '))}</small></td><td>${esc(p.cat||'—')}</td><td>${esc(p.unit)}${(p.units||[]).length?'<br><small>'+esc(unitsTxt(p))+'</small>':''}</td><td class="n">${money(p.cost)}</td><td class="n">${money(p.price)}${uPriceTxt(p)}</td><td class="n">${p.wprice?money(p.wprice):'—'}</td><td class="n ${p.stock<=(p.min||5)?'low':''}">${stk2(p)}</td><td class="n pact"><button class="ghost" data-edit="${p.id}">Sửa</button><button class="ghost" data-clone="${p.id}">Sao chép</button><button class="ghost" data-pstat="${p.id}">${p.status==='off'?'Bán lại':'Ngừng bán'}</button><button class="ghost danger" data-delprod="${p.id}">Xóa</button></td></tr>`).join('')||'<tr><td colspan="8" class="empty">Không có sản phẩm phù hợp. Điền thông tin ở trên rồi bấm Thêm, hoặc nhập từ file CSV.</td></tr>'}</table>${g.html}`;
   $('#pcnt').textContent=L.length;
 }
 function saveProd(next){
