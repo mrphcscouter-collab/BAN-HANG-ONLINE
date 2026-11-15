@@ -1796,7 +1796,8 @@ function gApply(d){
   else{try{localStorage.setItem(K,JSON.stringify(db))}catch(e){}}
   $('#shopname').textContent=db.shop;
   const ae=document.activeElement;
-  if(ae&&/INPUT|SELECT|TEXTAREA/.test(ae.tagName)&&tab!=='sell'&&ae.closest('#main')){toast('Có dữ liệu mới từ máy khác. Bấm sang thẻ khác để cập nhật.');return}
+  const formOpen=(tab==='products'&&(pAddOpen||editing||(typeof cloneFrom!=='undefined'&&cloneFrom)))||(tab==='customers'&&(editC||($('#cn')&&$('#cn').value.trim())));
+  if(tab!=='sell'&&(formOpen||(ae&&/INPUT|SELECT|TEXTAREA/.test(ae.tagName)&&ae.closest('#main')))){toast('Có dữ liệu mới từ máy khác. Dữ liệu đã được cập nhật ngầm, màn hình sẽ làm mới khi bạn lưu, đóng form hoặc chuyển thẻ.');return}
   try{go(tab)}catch(e){go('sell')}
 }
 async function gPullTo(id){
