@@ -433,6 +433,27 @@ input[type=checkbox]{-webkit-appearance:none;appearance:none}
 
 .cl>div.on,.cl>div:hover{background:rgba(0,122,255,.1)}.cl>.more:hover{background:transparent}
 select,input,button{font-family:inherit}
+
+/* Phiếu thu nợ */
+.dbm{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,.36);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);animation:dbf .2s ease}
+.dbs{width:100%;max-width:540px;max-height:calc(100vh - 32px);display:flex;flex-direction:column;background:rgba(255,255,255,.97);border-radius:26px;box-shadow:0 30px 90px rgba(0,0,0,.38);overflow:hidden;animation:dbu .38s var(--spring)}
+.dbh{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:20px 24px 16px;border-bottom:.5px solid var(--line)}
+.dbt1{font-size:22px;font-weight:700;letter-spacing:-.025em}.dbh small{color:var(--mute)}
+.dbno{background:var(--acl);color:var(--ac);border-radius:999px;padding:6px 14px;font-weight:700;font-size:15px;white-space:nowrap}
+.dbb{padding:18px 24px 6px;overflow:auto;flex:1}
+.dbg{display:grid;grid-template-columns:1fr 1.4fr;gap:12px}
+.dbc{background:var(--fill);border-radius:16px;padding:12px 16px;margin:2px 0 14px;font-size:14.5px}
+.dbc1{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:4px}.dbc1>b{font-size:17px}
+.dbd{color:var(--red);font-size:14px}.dbd b{font-size:16px}
+.dbc small{color:var(--mute)}
+.dba{font-size:34px!important;font-weight:700;letter-spacing:-.03em;text-align:right;min-height:64px!important;border-radius:16px!important;color:var(--ac)}
+.dbw{min-height:22px;margin:6px 4px 0;text-align:right;color:var(--mute);font-size:13.5px;font-style:italic}
+.dbr{display:flex;justify-content:space-between;align-items:baseline;padding:12px 16px;border-radius:14px;background:rgba(52,199,89,.12);color:#1e7a37;font-weight:600}.dbr b{font-size:20px}
+.dbf{display:flex;gap:10px;justify-content:flex-end;padding:14px 24px calc(18px + env(safe-area-inset-bottom));border-top:.5px solid var(--line);background:rgba(255,255,255,.9)}
+.dbf .pri{flex:1;background:#248a3d;font-size:16px;min-height:50px}.dbf .pri:disabled{background:#c7c7cc}.dbf .ghost{min-height:50px}
+@keyframes dbf{from{opacity:0}}@keyframes dbu{from{opacity:0;transform:translateY(24px) scale(.96)}}
+#toast{z-index:200}
+@media(max-width:700px){.dbm{align-items:flex-end;padding:0}.dbs{max-width:none;max-height:94vh;border-radius:26px 26px 0 0}.dbg{grid-template-columns:1fr}.dba{font-size:30px!important}}
 </style>
 </head>
 <body>
@@ -503,6 +524,8 @@ function norm(){
   {let mx=0;db.spays.forEach(x=>{const m=/^TN(\d+)$/.exec(x.no||'');if(m)mx=Math.max(mx,+m[1])});db.seqTN=Math.max(db.seqTN||1,mx+1);
    db.spays.filter(x=>!x.id||!x.no).sort((a,b)=>a.time-b.time).forEach(x=>{if(!x.id)x.id='sp'+x.time+'_'+x.sid;if(!x.no)x.no='TN'+String(db.seqTN++).padStart(4,'0')});
    db.spays.sort((a,b)=>b.time-a.time)}
+  {let mx=0;db.pays.forEach(x=>{const m=/^PT(\d+)$/.exec(x.no||'');if(m)mx=Math.max(mx,+m[1])});db.seqPT=Math.max(db.seqPT||1,mx+1);
+   db.pays.filter(x=>!x.no).sort((a,b)=>a.time-b.time).forEach(x=>{x.no='PT'+String(db.seqPT++).padStart(4,'0')})}
   db.products.forEach(p=>{p.status=p.status||'on';p.barcode=p.barcode||'';p.created=p.created||Date.now()});
   if((db.ver||0)<3){ /* v2 -> v3: mọi biến động có mã sản phẩm; tồn đầu kỳ để sổ kho cộng ra đúng tồn hiện tại */
     const by={},net={};db.products.forEach(p=>by[p.name]=p);
@@ -1635,7 +1658,7 @@ function custView(){
   $('#main').innerHTML=`<div class="card"><h2>${e?'Sửa khách hàng':'Thêm khách hàng'}</h2><div class="form" style="grid-template-columns:2fr 1fr 2fr 1fr auto auto"><label>Tên<input id="cn"></label><label>Số điện thoại<input id="cp"></label><label>Địa chỉ<input id="ca"></label><label>Ghi chú<input id="cno"></label><button class="pri" data-savecust>${e?'Lưu thay đổi':'Thêm'}</button>${e?'<button class="ghost" data-cancelc>Hủy</button>':'<span></span>'}</div></div>
   ${custHist()}
   <div class="card"><h2>Danh sách khách hàng (${db.customers.length}, tổng nợ ${money(debt)})</h2><input id="cq" value="${esc(custQ)}" placeholder="Tìm theo tên, số điện thoại, địa chỉ" autocomplete="off" style="margin:6px 0 12px"><div class="ivl" id="clist">${custList()}</div></div>
-  <div class="card"><h2>Lịch sử thu nợ</h2><table><tr><th>Thời gian</th><th>Khách hàng</th><th class="n">Số tiền</th></tr>${db.pays.slice(0,15).map(x=>`<tr><td>${fmtT(x.time)}</td><td>${esc(x.name)}</td><td class="n">${money(x.amt)}</td></tr>`).join('')||'<tr><td colspan="3" class="empty">Chưa có lần thu nợ nào.</td></tr>'}</table></div>`;
+  <div class="card"><h2>Lịch sử thu nợ</h2><table><tr><th>Số phiếu</th><th>Thời gian</th><th>Khách hàng</th><th>Hình thức</th><th>Nội dung</th><th class="n">Số tiền</th><th></th></tr>${db.pays.slice(0,30).map(x=>`<tr><td><b>${esc(x.no||'—')}</b></td><td>${fmtT(x.time)}</td><td>${esc(x.name)}</td><td>${esc(MT[x.method]||'Tiền mặt')}</td><td>${esc(x.note||'')}</td><td class="n">${money(x.amt)}</td><td class="n"><button class="ghost" data-ptprint="${esc(x.no||'')}">In</button></td></tr>`).join('')||'<tr><td colspan="7" class="empty">Chưa có lần thu nợ nào.</td></tr>'}</table></div>`;
   if(e){$('#cn').value=e.name;$('#cp').value=e.phone||'';$('#ca').value=e.addr||'';$('#cno').value=e.note||''}
   $('#cq').oninput=ev=>{custQ=ev.target.value;$('#clist').innerHTML=custList()};
 }
@@ -1669,11 +1692,55 @@ function delCust(id){
   if(confirm(`Xóa khách hàng "${c.name}"? Hóa đơn cũ vẫn được giữ nguyên.`)){db.customers=db.customers.filter(x=>x!==c);orders.forEach(o=>{if(o.cid===id)o.cid=''});save();custView()}
 }
 function payDebt(id){
-  const c=db.customers.find(x=>x.id===id),v=prompt(`${c.name} đang nợ ${money(c.debt)}. Nhập số tiền khách trả:`,c.debt);
-  if(v===null)return;const n=+v;
-  if(!(n>0)||n>c.debt)return alert('Số tiền phải lớn hơn 0 và không vượt quá số nợ.');
-  c.debt-=n;db.pays.unshift({time:Date.now(),cid:id,name:c.name,amt:n});db.pays=db.pays.slice(0,300);save();custView();
+  const c=db.customers.find(x=>x.id===id);if(!c||!(c.debt>0))return;
+  const old=document.querySelector('.dbm');if(old)old.remove();
+  const D=c.debt,t0=Date.now(),no='PT'+String(db.seqPT||1).padStart(4,'0'),fm=v=>v?Math.round(v).toLocaleString('vi-VN'):'';
+  let n=D,method='cash';
+  const el=document.createElement('div');el.className='dbm';
+  el.innerHTML=`<div class="dbs" role="dialog" aria-modal="true" aria-label="Phiếu thu nợ">
+   <div class="dbh"><div><div class="dbt1">Phiếu thu nợ</div><small>Thu tiền khách hàng thanh toán công nợ</small></div><span class="dbno">${esc(no)}</span></div>
+   <div class="dbb">
+    <div class="dbg"><label>Số phiếu thu<input value="${esc(no)}" readonly></label><label>Ngày giờ thu<input type="datetime-local" id="dbt" value="${toLocal(t0)}" max="${toLocal(Date.now())}"></label></div>
+    <div class="dbc"><div class="dbc1"><b>${esc(c.name)}</b><span class="dbd">Nợ hiện tại <b>${money(D)}</b></span></div>${c.phone?'<div><small>Điện thoại:</small> '+esc(c.phone)+'</div>':''}${c.addr?'<div><small>Địa chỉ:</small> '+esc(c.addr)+'</div>':''}</div>
+    <label>Số tiền khách trả (đồng)<input id="dba" class="dba" inputmode="numeric" autocomplete="off" value="${fm(D)}"></label>
+    <div class="dbw" id="dbw"></div>
+    <div class="quick" style="margin:8px 0 12px"><button type="button" data-f="all">Thu hết nợ</button><button type="button" data-f="half">Một nửa</button></div>
+    <div class="dbr"><span>Nợ còn lại sau khi thu</span><b id="dbl"></b></div>
+    <div class="pm" style="margin:12px 0">${[['cash','Tiền mặt'],['bank','Chuyển khoản'],['card','Thẻ']].map(([k,l])=>`<label><input type="radio" name="dbm" value="${k}" ${k==='cash'?'checked':''}>${l}</label>`).join('')}</div>
+    <label>Ghi chú / nội dung thu<input id="dbn" placeholder="VD: Thu nợ tháng 11"></label>
+    <label class="chk"><input type="checkbox" id="dbp" ${db.ptPrint!==false?'checked':''}>In phiếu thu sau khi lưu</label>
+    <div class="low" id="dbe" style="min-height:20px"></div>
+   </div>
+   <div class="dbf"><button type="button" class="ghost" data-x>Hủy</button><button type="button" class="pri" id="dbok">Xác nhận thu tiền</button></div></div>`;
+  document.body.appendChild(el);
+  const q=s=>el.querySelector(s),close=()=>{el.remove();document.removeEventListener('keydown',kd,true)};
+  const upd=()=>{const bad=n>D+1e-6;q('#dbw').textContent=n>0&&!bad?moneyWords(n):'';q('#dbl').textContent=money(Math.max(0,D-n));q('#dbe').textContent=bad?'Số tiền thu không được vượt quá số nợ ('+money(D)+').':'';q('#dbok').disabled=!(n>0)||bad};
+  const setN=v=>{n=v;q('#dba').value=fm(n);upd()};
+  const go2=()=>{
+    if(!(n>0)||n>D+1e-6)return;
+    const T=timeIn(q('#dbt').value,t0);if(T.err){q('#dbe').textContent=T.err;return}
+    const seq=db.seqPT||1,rec={no:'PT'+String(seq).padStart(4,'0'),time:T.t,cid:id,name:c.name,amt:n,method,note:q('#dbn').value.trim(),before:D,after:rd(D-n)};
+    db.seqPT=seq+1;c.debt=Math.max(0,rd(c.debt-n));db.pays.unshift(rec);db.pays.sort((a,b)=>b.time-a.time);db.pays=db.pays.slice(0,5000);
+    db.ptPrint=q('#dbp').checked;save();close();custView();toast('Đã thu '+money(n)+' · '+rec.no);
+    if(db.ptPrint)printPT(rec);
+  };
+  const kd=e=>{if(e.key==='Escape'){e.stopPropagation();close()}else if(e.key==='Enter'&&e.target.id!=='dbn'&&e.target.tagName!=='BUTTON'){e.preventDefault();go2()}};
+  document.addEventListener('keydown',kd,true);
+  q('#dba').oninput=e=>{const d=e.target.value.replace(/\D/g,'');n=+d||0;e.target.value=fm(n);upd()};
+  el.onclick=e=>{const b=e.target.closest('button');if(e.target===el||(b&&b.dataset.x!==undefined))return close();if(b&&b.dataset.f)setN(b.dataset.f==='all'?D:Math.round(D/2))};
+  el.querySelectorAll('[name=dbm]').forEach(x=>x.onchange=()=>{method=x.value});
+  q('#dbok').onclick=go2;upd();q('#dba').focus();q('#dba').select();
 }
+function printPT(x){
+  const c=db.customers.find(z=>z.id===x.cid)||{};
+  printDoc({title:'PHIẾU THU',no:x.no,time:fmtT(x.time),
+    parties:[['Khách hàng',esc(x.name)],c.phone&&['Điện thoại',esc(c.phone)],c.addr&&['Địa chỉ',esc(c.addr)],['Hình thức',MT[x.method]||'Tiền mặt'],x.note&&['Nội dung',esc(x.note)]].filter(Boolean),
+    cols:[['Nội dung'],['Số tiền','right','36mm']],
+    rows:[{c:['Thu tiền nợ của khách hàng '+esc(x.name),money(x.amt)],k:['Thu nợ '+esc(x.name),money(x.amt)]}],
+    sums:[x.before!=null&&['Nợ trước khi thu',money(x.before)],['SỐ TIỀN THU',money(x.amt),1],x.after!=null&&['Nợ còn lại',money(x.after)]].filter(Boolean),
+    words:x.amt,sign:['Người nộp tiền','Người lập phiếu','Thủ quỹ']});
+}
+document.addEventListener('click',e=>{const b=e.target.closest('[data-ptprint]');if(!b)return;const x=db.pays.find(z=>z.no===b.dataset.ptprint);if(x)printPT(x)});
 
 /* ---------- Nhà cung cấp ---------- */
 let spEdit=null,spSid='',spAmt='',spTime='',spNote='',spF='',editS=null,impF='',imp={sid:'',note:'',lines:[]},retNo='',retQ='';
@@ -2109,7 +2176,7 @@ const jeq=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
 const idbPut=(k,v)=>new Promise((ok,no)=>{const tx=idb.transaction('kv','readwrite');tx.objectStore('kv').put(v,k);tx.oncomplete=ok;tx.onerror=()=>no(tx.error)});
 function normObj(o){const k=db;db=o;try{norm()}finally{db=k}return o}
 const GCOLS=[['products',x=>x.id],['customers',x=>x.id],['suppliers',x=>x.id],['whs',x=>x.id],['locs',x=>x.id],['attrs',x=>x.id],['staff',x=>x.id],['expenses',x=>x.id],['counts',x=>x.id],['moves',x=>x.id],['invoices',x=>x.no],['spays',x=>x.id],['imports',x=>x.no],['returns',x=>x.no],['xfers',x=>x.no],['pays',x=>x.time+'|'+x.cid+'|'+x.amt],['spays',x=>x.time+'|'+x.sid+'|'+x.amt]];
-const GSEQ=['seq','seqPN','seqTH','seqKK','seqCK','seqTN'];
+const GSEQ=['seq','seqPN','seqTH','seqKK','seqCK','seqTN','seqPT'];
 /* gộp 1 bản ghi: tồn kho và công nợ cộng dồn chênh lệch, các trường khác lấy bên có thay đổi (cùng sửa một trường thì lấy máy này) */
 function gRec(b,l,r){
   const o={};
@@ -2125,10 +2192,10 @@ function gRec(b,l,r){
 /* phiếu do máy này lập trùng số với phiếu máy kia lập: đổi số phiếu của máy này, sửa các tham chiếu */
 function gRenum(B,L,R){
   const map={};
-  [['invoices','seq'],['spays','seqTN'],['imports','seqPN'],['returns','seqTH'],['xfers','seqCK'],['counts','seqKK']].forEach(([c,sf])=>{
+  [['invoices','seq'],['pays','seqPT'],['spays','seqTN'],['imports','seqPN'],['returns','seqTH'],['xfers','seqCK'],['counts','seqKK']].forEach(([c,sf])=>{
     const bn=new Set(B[c].map(x=>x.no)),rn=new Set(R[c].map(x=>x.no)),used=new Set([...L[c].map(x=>x.no),...rn]);
     let seq=Math.max(L[sf]||1,R[sf]||1);
-    L[c].filter(x=>!bn.has(x.no)&&rn.has(x.no)).sort((a,b)=>a.time-b.time).forEach(x=>{
+    L[c].filter(x=>x.no&&!bn.has(x.no)&&rn.has(x.no)).sort((a,b)=>a.time-b.time).forEach(x=>{
       const pre=x.no.replace(/\d+$/,'');let n;
       do{n=pre+String(seq++).padStart(4,'0')}while(used.has(n));
       used.add(n);map[x.no]=n;x.no=n;
