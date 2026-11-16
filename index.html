@@ -405,6 +405,13 @@ kbd{background:#fff;border:0;box-shadow:0 1px 0 rgba(0,0,0,.25),0 0 0 .5px rgba(
  main{padding-bottom:calc(190px + env(safe-area-inset-bottom))}
  #toast{bottom:calc(150px + env(safe-area-inset-bottom))}
 }
+
+@media(max-width:700px){
+ header{-webkit-backdrop-filter:none;backdrop-filter:none;background:transparent;isolation:isolate}
+ header::before{content:"";position:absolute;inset:0;z-index:-1;background:var(--glass);-webkit-backdrop-filter:saturate(190%) blur(28px);backdrop-filter:saturate(190%) blur(28px);box-shadow:0 .5px 0 var(--line)}
+ nav{position:fixed!important;top:auto!important;left:12px!important;right:12px!important;bottom:calc(10px + env(safe-area-inset-bottom))!important}
+}
+#q{background-size:20px 20px}
 </style>
 </head>
 <body>
@@ -759,10 +766,10 @@ function editInvoice(no){
 function printInv(v){
   const cu=db.customers.find(x=>x.id===v.cid)||{},ph=v.cphone||cu.phone||'',ad=v.caddr||cu.addr||'';
   const rows=v.items.map(i=>{const p=prod(i.id)||{},d=pdesc(p),q=i.un?String(i.uq):String(rd(i.qty)),u=i.un||i.unit||'',pr=i.un?i.up:i.price,amt=Math.round(i.qty*i.price);
-    const ex=i.note||'';return{c:[esc(p.code||''),`<b>${esc(i.name)}</b>${ex?`<br><small>${esc(ex)}</small>`:''}`,esc(u),q,money(pr),money(amt)],k:[`${esc(i.name)}${i.note?' ('+esc(i.note)+')':''}<br>${q} ${esc(u)} × ${money(pr)}`,money(amt)]}});
+    const ex=i.note||'';return{c:[`<b>${esc(i.name)}</b>${ex?`<br><small>${esc(ex)}</small>`:''}`,esc(u),q,money(pr),money(amt)],k:[`${esc(i.name)}${i.note?' ('+esc(i.note)+')':''}<br>${q} ${esc(u)} × ${money(pr)}`,money(amt)]}});
   printDoc({title:'PHIẾU BÁN HÀNG',no:v.no,time:fmtT(v.time),
     parties:[['Khách hàng',esc(v.cname||'Khách lẻ')],ph&&['Điện thoại',esc(ph)],ad&&['Địa chỉ',esc(ad)],v.addr&&['Giao đến',esc(v.addr)],['Thanh toán',MT[v.method]||'Tiền mặt'],v.staff&&['Nhân viên bán',esc(v.staff)],v.edited&&['Đã sửa lúc',fmtT(v.edited)]].filter(Boolean),
-    cols:[['Mã hàng','left','18mm'],['Tên hàng, quy cách'],['ĐVT','center','14mm'],['SL','right','16mm'],['Đơn giá','right','24mm'],['Thành tiền','right','28mm']],rows,
+    cols:[['Tên hàng, quy cách'],['ĐVT','center','14mm'],['SL','right','16mm'],['Đơn giá','right','24mm'],['Thành tiền','right','28mm']],rows,
     sums:[['Cộng tiền hàng',money(v.sub)],v.disc&&['Giảm giá','-'+money(v.disc)],v.vat&&['VAT ('+v.vatp+'%)',money(v.vat)],v.fee&&['Phí vận chuyển',money(v.fee)],['TỔNG THANH TOÁN',money(v.total),1],['Khách thanh toán',money(v.paid)],v.debt?['Còn nợ',money(v.debt)]:['Tiền thối',money(v.change)]].filter(Boolean),
     words:v.total,note:v.note,bank:1,sign:['Khách hàng','Người giao hàng','Người lập phiếu']});
 }
