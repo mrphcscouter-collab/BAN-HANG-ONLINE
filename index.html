@@ -430,6 +430,9 @@ input[type=checkbox]{-webkit-appearance:none;appearance:none}
  .doc .dtb th{color:#000!important;background:#eee!important;position:static!important;font-weight:700!important;letter-spacing:0!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
  .doc .dtb td{color:#000!important;background:none!important}
 }
+
+.cl>div.on,.cl>div:hover{background:rgba(0,122,255,.1)}.cl>.more:hover{background:transparent}
+select,input,button{font-family:inherit}
 </style>
 </head>
 <body>
@@ -1729,7 +1732,7 @@ const itot=()=>{const t=imp.lines.reduce((s,l)=>s+l.qty*l.cost,0);$('#itot').tex
 function impView(){
   const L=db.imports.filter(x=>!impF||x.sid===impF),so=db.suppliers.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join('');
   $('#main').innerHTML=`<div class="card"><h2>${imp.edit?'Sửa phiếu nhập '+imp.edit+' <button class="ghost" data-iedcancel>Hủy sửa</button>':'Phiếu nhập hàng mới'}</h2>
-  <div class="form" style="grid-template-columns:1fr"><label>Nhà cung cấp<select id="isup"><option value="">Không chọn</option>${so}</select></label></div>
+  <div class="form" style="grid-template-columns:1fr"><div class="clab" style="margin:0">Nhà cung cấp<div class="cbox"><input id="isq" type="search" autocomplete="off" placeholder="Không chọn (gõ tên hoặc số điện thoại để tìm nhà cung cấp)"><div id="isl" class="cl" hidden></div></div></div><select id="isup" hidden><option value="">Không chọn</option>${so}</select></div>
   <div class="form" style="grid-template-columns:1fr 1fr;margin-top:10px"><label>Kho nhập hàng<select id="iwh">${whOpts(imp.wid||db.defWh)}</select></label><label>Vị trí / kệ<select id="ilc">${locOpts(imp.wid||db.defWh,imp.lid)}</select></label></div>
   <label style="margin-top:10px;max-width:280px">Thời gian nhập${imp.edit?'':' <small>(để trống = bây giờ)</small>'}<input type="datetime-local" id="itime" value="${esc(imp.time||'')}" max="${toLocal(Date.now())}"></label>
   <div class="sb" style="margin-top:14px"><select id="ics"><option value="">Tất cả danh mục</option>${catOpts(icat)}</select><div class="sw"><input id="iq" placeholder="Tìm hàng để thêm vào phiếu nhập: tên, mã, thương hiệu, quy cách…" autocomplete="off"><div id="ires" class="res" hidden></div></div></div>
@@ -1741,6 +1744,20 @@ function impView(){
   <div class="card"><div class="tools" style="justify-content:space-between;align-items:center;margin-bottom:10px"><h2 style="margin:0">Lịch sử nhập hàng (${L.length})</h2>${paperSel()}<select id="ifl" style="width:auto"><option value="">Tất cả nhà cung cấp</option>${db.suppliers.map(x=>`<option value="${x.id}" ${x.id===impF?'selected':''}>${esc(x.name)}</option>`).join('')}</select></div>
   <table><tr><th>Số phiếu</th><th>Thời gian</th><th>Nhà cung cấp</th><th>Hàng hóa</th><th class="n">Tổng tiền</th><th></th></tr>${L.map(x=>`<tr class="${x.void?'void':''}"><td>${x.no}${x.void?' <span class="tag">Đã hủy</span>':''}</td><td>${fmtT(x.time)}</td><td>${esc(x.sname||'—')}<br><small>${esc(whName(x.wid||db.defWh))}${x.lid?' / '+esc(locName(x.lid)):''}</small></td><td>${esc(x.items.map(i=>{const l=ln(i,'cost');return i.name+' ×'+l.q+(i.un?' '+i.un:'')+' ('+money(l.pr)+')'}).join(', '))}${x.note?'<br><small>'+esc(x.note)+'</small>':''}</td><td class="n">${money(x.total)}${x.debt&&!x.void?'<br><small class="low">còn nợ '+money(x.debt)+'</small>':''}${x.edited?'<br><small>đã sửa</small>':''}</td><td class="n"><button class="ghost" data-iprint="${x.no}">In</button>${x.void?'':`<button class="ghost" data-iedit="${x.no}">Sửa</button><button class="ghost danger" data-ivoid="${x.no}">Hủy</button>`}<button class="ghost danger" data-idel="${x.no}">Xóa hẳn</button></td></tr>`).join('')||'<tr><td colspan="6" class="empty">Chưa có phiếu nhập nào.</td></tr>'}</table></div>`;
   $('#isup').value=imp.sid;$('#inote').value=imp.note;
+
+  {const sq=$('#isq'),sl=$('#isl');let ss=[],sh=-1;
+   const lab=()=>{const s=db.suppliers.find(x=>x.id===imp.sid);return s?s.name:''};
+   sq.value=lab();
+   const pickS=id=>{imp.sid=id;$('#isup').value=id;sq.value=lab();sl.hidden=true;sq.blur()};
+   const showS=f=>{const k=nz(f).trim(),L=db.suppliers.filter(c=>!k||k.split(/\s+/).every(w=>nz(c.name+' '+(c.phone||'')+' '+(c.addr||'')).includes(w)));
+    ss=(k?[]:[{id:'',name:'Không chọn'}]).concat(L.slice(0,8));sh=k&&ss.length?0:-1;
+    sl.innerHTML=ss.map((c,i)=>`<div data-i="${i}" class="${i===sh?'on':''}"><b>${esc(c.name)}</b>${c.phone?' - '+esc(c.phone):''}${c.debt?' <span class="low">(nợ '+money(c.debt)+')</span>':''}${c.addr?'<br><small>'+esc(c.addr)+'</small>':''}</div>`).join('')+(L.length>8?`<div class="more">Còn ${L.length-8} nhà cung cấp khác, gõ thêm để lọc</div>`:'')+(k&&!L.length?'<div class="more">Không tìm thấy nhà cung cấp.</div>':'');sl.hidden=false};
+   const markS=()=>[...sl.querySelectorAll('[data-i]')].forEach((e,i)=>e.classList.toggle('on',i===sh));
+   sq.onfocus=()=>{sq.select();showS('')};
+   sq.oninput=()=>showS(sq.value);
+   sq.onblur=()=>setTimeout(()=>{sl.hidden=true;sq.value=lab()},150);
+   sq.onkeydown=ev=>{if(ev.key==='ArrowDown'){ev.preventDefault();sh=Math.min(ss.length-1,sh+1);markS()}else if(ev.key==='ArrowUp'){ev.preventDefault();sh=Math.max(0,sh-1);markS()}else if(ev.key==='Enter'){ev.preventDefault();if(ss[sh])pickS(ss[sh].id)}else if(ev.key==='Escape'){sq.blur()}};
+   sl.onmousedown=ev=>{ev.preventDefault();const it=ev.target.closest('[data-i]');if(it)pickS(ss[+it.dataset.i].id)};}
   $('#isup').onchange=e=>{imp.sid=e.target.value};$('#iwh').onchange=e=>{imp.wid=e.target.value;imp.lid='';impView()};$('#ilc').onchange=e=>{imp.lid=e.target.value};$('#inote').oninput=e=>{imp.note=e.target.value};$('#itime').onchange=e=>{imp.time=e.target.value};$('#ipaid').oninput=e=>{imp.paid=e.target.value;itot()};
   {const qi=$('#iq'),res=$('#ires');qi.value=iq;
    qi.oninput=()=>{iq=qi.value;ihi=0;showIRes()};qi.onfocus=()=>showIRes();qi.onblur=()=>setTimeout(()=>{res.hidden=true},120);
