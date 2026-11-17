@@ -49,6 +49,7 @@ small{color:var(--mute);font-size:12px}
 .qty{display:flex;align-items:center;gap:6px}
 .qty button{width:28px;height:28px;border:1px solid var(--line);background:#fff;border-radius:6px;font-size:16px;line-height:1}
 .qty span{min-width:20px;text-align:center}
+.qb{display:contents}.qty .uu{order:5;margin-left:2px}.qty .ut{color:var(--mute);min-width:0}
 .amt{text-align:right;font-weight:600}
 .sum{margin-top:14px}
 .row{display:flex;justify-content:space-between;padding:4px 0}
@@ -456,8 +457,27 @@ select,input,button{font-family:inherit}
 @media(max-width:700px){.dbm{align-items:flex-end;padding:0}.dbs{max-width:none;max-height:94vh;border-radius:26px 26px 0 0}.dbg{grid-template-columns:1fr}.dba{font-size:30px!important}}
 
 /* Điện thoại / máy tính bảng: tổng tiền đã có ở thanh dưới, bỏ khối "Khách cần trả" trùng lặp */
+#pmenu{position:fixed;z-index:120;min-width:150px;padding:6px;display:flex;flex-direction:column;background:rgba(255,255,255,.95);-webkit-backdrop-filter:saturate(180%) blur(24px);backdrop-filter:saturate(180%) blur(24px);border:.5px solid var(--line);border-radius:16px;box-shadow:0 16px 40px rgba(0,0,0,.2)}
+#pmenu button{border:0;background:none;text-align:left;padding:11px 14px;border-radius:10px;font-weight:500;color:var(--ink);min-height:40px}
+#pmenu button:hover{background:var(--fill)}#pmenu button.dg{color:var(--red)}#pmenu button.dg:hover{background:rgba(255,59,48,.12)}
+.pmb{font-size:18px;line-height:1;letter-spacing:1px;padding:4px 12px!important}
 @media(max-width:900px){.pp .row.big{display:none}.pp{padding-top:4px}}
 @media(max-width:700px){.keys{display:none}}
+.lt .c-qty small{display:none}
+/* Giỏ hàng trên điện thoại: số lượng | đơn giá | thành tiền cùng một hàng */
+@media(max-width:700px){
+ .lt tr{grid-template-columns:156px minmax(0,1fr) minmax(74px,max-content)!important;grid-template-areas:"name name x" "qty price amt"!important;align-items:start;column-gap:6px}
+ .lt .c-qty{width:156px;text-align:center;font-size:13px;line-height:1.25}
+ .lt .c-qty .qty{gap:4px;justify-content:center;flex-wrap:nowrap}
+ .lt .c-qty .qb{display:flex;align-items:center;flex:1;min-width:0;height:34px;background:var(--fill);border-radius:17px;overflow:hidden}
+ .lt .c-qty .qb .uu{order:0;margin:0;flex:none;height:34px;line-height:34px;padding:0 7px 0 0;font-size:13px;font-weight:600;color:var(--mute);background:transparent;border:0;border-radius:0;min-height:0;width:auto;max-width:56px;-webkit-appearance:none;appearance:none;text-align:left;white-space:nowrap}
+ .lt .c-qty .qb select.uu{color:var(--ac)}
+ .lt .c-qty .qty button{width:28px;height:28px;align-self:center;min-width:0;flex:none;padding:0;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:20px;line-height:1;text-align:center}
+ .lt .c-qty .qi{flex:1;width:0;min-width:0;background:transparent;border-radius:0;height:34px;min-width:0;padding:5px 2px;text-align:center;font-size:16px}
+  .lt .c-price::before{display:none}
+ .lt .c-price .pi{text-align:right;width:100%;min-width:0!important;height:34px;padding:0 4px;font-size:16px}
+ .lt .c-amt{align-self:start;line-height:34px;text-align:right;font-weight:700;white-space:nowrap;font-size:14px;padding-right:4px}
+}
 </style>
 </head>
 <body>
@@ -580,6 +600,7 @@ const timeIn=(s,def)=>{if(!s)return{t:def};if(def&&s===toLocal(def))return{t:def
 const rd=n=>Math.round(n*1e6)/1e6,rdp=n=>Math.round(n*100)/100; /* rd: số lượng (đủ chính xác cho đơn vị chiết lẻ), rdp: hiển thị 2 số lẻ */
 const pr=p=>O().tier==='w'&&p.wprice?p.wprice:p.price;
 const rd6=n=>Math.round(n*1e6)/1e6;
+const fmtN=n=>Math.round(n||0).toLocaleString('vi-VN');
 /* Đơn vị cơ sở = p.unit. p.units = [{name,per}]: 1 name = per đơn vị liền trước (cấp 1 tính theo đơn vị cơ sở) */
 const urates=p=>{let r=1;const o=[{name:p.unit,rate:1}];(p.units||[]).forEach(u=>{r=rd6(r*u.per);o.push({name:u.name,rate:r,u})});(p.subs||[]).forEach(u=>{if(u.per>0)o.push({name:u.name,rate:rd6(1/u.per),u})});return o};
 /* Quy đổi để đối chiếu: đơn vị quy đổi lớn nhất (nếu có) + đơn vị nhỏ (nếu có), vd "2 Thùng 1.52 viên"; bỏ qua đơn vị cơ sở ở giữa */
@@ -684,11 +705,11 @@ function clearOrder(){
 }
 function drawLines(){
   const o=O(),n=o.lines.length;
-  $('#lines').innerHTML=n?`<table class="lt"><tr><th>#</th><th>Mã</th><th>Tên hàng</th><th class="n">Số lượng</th><th class="n">Đơn giá</th><th class="n">Thành tiền</th><th></th></tr>${o.lines.map((i,k)=>{const p=prod(i.id),ur=urates(p),r=(ur[i.u||0]||ur[0]).rate,L=lid(i);return `<tr><td class="c-n">${n-k}</td><td class="c-code">${esc(p.code||'')}</td><td class="c-name"><b>${esc(p.name)}</b><br><small>${esc(pdesc(p))}</small><br><small class="stk ${stkCls(p)}" data-sp="${p.id}">${esc(stkTxt(p))}</small><input class="ln" data-n="${L}" placeholder="Màu / ghi chú dòng (VD: Dulux 30YY 61/200)" value="${esc(i.note||'')}"></td><td class="n c-qty"><div class="qty"><button data-dec="${L}">−</button><input class="qi" type="number" step="any" min="0" data-q="${L}" value="${rd(i.qty/r)}"><button data-inc="${L}">+</button></div>${ur.length>1?`<select class="ul" data-u="${L}">${ur.map((u,x)=>`<option value="${x}" ${x===(i.u||0)?'selected':''}>${esc(u.name)}</option>`).join('')}</select>`:esc(p.unit)}<br><small id="h_${L}">${esc(lineSub(i,p))}</small></td><td class="n c-price"><input class="pi" type="number" min="0" data-p="${L}" value="${rdp(uprice(i)*r)}"></td><td class="n amt c-amt" id="a_${L}">${money(uprice(i)*i.qty)}</td><td class="c-x"><button class="x" data-rm="${L}" title="Xóa dòng">×</button></td></tr>`}).join('')}</table>`:'<div class="emp"><b>Hóa đơn đang trống</b>Quét mã vạch hoặc gõ tên / mã hàng ở ô tìm phía trên để bắt đầu bán.</div>';
+  $('#lines').innerHTML=n?`<table class="lt"><tr><th>#</th><th>Mã</th><th>Tên hàng</th><th class="n">Số lượng</th><th class="n">Đơn giá</th><th class="n">Thành tiền</th><th></th></tr>${o.lines.map((i,k)=>{const p=prod(i.id),ur=urates(p),r=(ur[i.u||0]||ur[0]).rate,L=lid(i);return `<tr><td class="c-n">${n-k}</td><td class="c-code">${esc(p.code||'')}</td><td class="c-name"><b>${esc(p.name)}</b><br><small>${esc(pdesc(p))}</small><input class="ln" data-n="${L}" placeholder="Màu / ghi chú dòng (VD: Dulux 30YY 61/200)" value="${esc(i.note||'')}"></td><td class="n c-qty"><div class="qty"><button data-dec="${L}">−</button><span class="qb"><input class="qi" type="number" step="any" min="0" data-q="${L}" value="${rd(i.qty/r)}">${ur.length>1?`<select class="ul uu" data-u="${L}">${ur.map((u,x)=>`<option value="${x}" ${x===(i.u||0)?'selected':''}>${esc(u.name)}</option>`).join('')}</select>`:`<span class="uu ut">${esc(p.unit)}</span>`}</span><button data-inc="${L}">+</button></div><small id="h_${L}">${esc(lineSub(i,p))}</small></td><td class="n c-price"><input class="pi pf" type="text" inputmode="numeric" autocomplete="off" data-p="${L}" value="${fmtN(uprice(i)*r)}"></td><td class="n amt c-amt" id="a_${L}">${money(uprice(i)*i.qty)}</td><td class="c-x"><button class="x" data-rm="${L}" title="Xóa dòng">×</button></td></tr>`}).join('')}</table>`:'<div class="emp"><b>Hóa đơn đang trống</b>Quét mã vạch hoặc gõ tên / mã hàng ở ô tìm phía trên để bắt đầu bán.</div>';
   const LN=n=>O().lines.find(x=>lid(x)===n);
   document.querySelectorAll('.qi').forEach(el=>el.oninput=()=>{const i=LN(el.dataset.q),p=prod(i.id),r=urates(p)[i.u||0].rate;let v=Math.max(0,+el.value||0)*r;const room=avail(p)-usedQty(O(),p.id,i);if(v>room&&!db.allowNeg){v=Math.max(0,room);el.value=rd(v/r)}i.qty=rd(v);rowUpd(i,p)});
   document.querySelectorAll('.ln').forEach(el=>el.oninput=()=>{LN(el.dataset.n).note=el.value});
-  document.querySelectorAll('.pi').forEach(el=>el.oninput=()=>{const i=LN(el.dataset.p),p=prod(i.id),r=urates(p)[i.u||0].rate;i.pr=Math.max(0,+el.value||0)/r;rowUpd(i,p)});
+  document.querySelectorAll('.pf').forEach(el=>{el.oninput=()=>{const i=LN(el.dataset.p),p=prod(i.id),r=urates(p)[i.u||0].rate,d=el.value.replace(/\D/g,''),n=+d||0,pos=el.value.length-el.selectionStart;el.value=d?fmtN(n):'';const np=Math.max(0,el.value.length-pos);try{el.setSelectionRange(np,np)}catch(e){}i.pr=n/r;rowUpd(i,p)};el.onfocus=()=>el.select()});
   document.querySelectorAll('.ul').forEach(el=>el.onchange=()=>{const i=LN(el.dataset.u);i.u=+el.value;if(hasUP(prod(i.id)))i.pr=null;drawLines()});
   upd();
 }
@@ -898,9 +919,21 @@ function products(){
 function drawPL(){
   const k=nz(pSearch),L=db.products.filter(p=>inCat(p,fc)&&attrOK(p)&&(!k||nz(ptext(p)).includes(k))&&stOK(p,pSt)),g=pager('pl',L.length);
   $('#plist').innerHTML=`<table class="ptab"><tr><th>Sản phẩm</th><th>Danh mục</th><th>ĐVT</th><th class="n">Giá vốn</th><th class="n">Giá lẻ</th><th class="n">Giá thợ</th><th class="n">Tồn</th><th></th></tr>
-  ${L.slice(g.from,g.from+50).map(p=>`<tr><td>${esc(p.name)}${p.status==='off'?' <span class="tag">Ngừng bán</span>':''}<br><small>${esc([p.code,p.barcode,pdesc(p)].filter(Boolean).join(', '))}</small></td><td>${esc(p.cat||'—')}</td><td>${esc(p.unit)}${(p.units||[]).length?'<br><small>'+esc(unitsTxt(p))+'</small>':''}</td><td class="n">${money(p.cost)}</td><td class="n">${money(p.price)}${uPriceTxt(p)}</td><td class="n">${p.wprice?money(p.wprice):'—'}</td><td class="n ${p.stock<=(p.min||5)?'low':''}">${stk2(p)}</td><td class="n pact"><button class="ghost" data-edit="${p.id}">Sửa</button><button class="ghost" data-clone="${p.id}">Sao chép</button><button class="ghost" data-pstat="${p.id}">${p.status==='off'?'Bán lại':'Ngừng bán'}</button><button class="ghost danger" data-delprod="${p.id}">Xóa</button></td></tr>`).join('')||'<tr><td colspan="8" class="empty">Không có sản phẩm phù hợp. Điền thông tin ở trên rồi bấm Thêm, hoặc nhập từ file CSV.</td></tr>'}</table>${g.html}`;
+  ${L.slice(g.from,g.from+50).map(p=>`<tr><td>${esc(p.name)}${p.status==='off'?' <span class="tag">Ngừng bán</span>':''}<br><small>${esc([p.code,p.barcode,pdesc(p)].filter(Boolean).join(', '))}</small></td><td>${esc(p.cat||'—')}</td><td>${esc(p.unit)}</td><td class="n">${money(p.cost)}</td><td class="n">${money(p.price)}${uPriceTxt(p)}</td><td class="n">${p.wprice?money(p.wprice):'—'}</td><td class="n ${p.stock<=(p.min||5)?'low':''}">${stk2(p)}</td><td class="n pact"><button class="ghost" data-edit="${p.id}">Sửa</button><button class="ghost" data-clone="${p.id}">Sao chép</button><button class="ghost pmb" data-pmore="${p.id}" title="Thêm" aria-label="Thêm">⋯</button></td></tr>`).join('')||'<tr><td colspan="8" class="empty">Không có sản phẩm phù hợp. Điền thông tin ở trên rồi bấm Thêm, hoặc nhập từ file CSV.</td></tr>'}</table>${g.html}`;
   $('#pcnt').textContent=L.length;
 }
+function pMenu(btn,id){
+  const old=$('#pmenu'),same=old&&old.dataset.id===id;if(old)old.remove();if(same)return;
+  const p=prod(id);if(!p)return;
+  const m=document.createElement('div');m.id='pmenu';m.dataset.id=id;
+  m.innerHTML=`<button data-pstat="${id}">${p.status==='off'?'Bán lại':'Ngừng bán'}</button><button class="dg" data-delprod="${id}">Xóa</button>`;
+  document.body.appendChild(m);
+  const r=btn.getBoundingClientRect(),w=m.offsetWidth,h=m.offsetHeight;
+  m.style.left=Math.max(8,Math.min(innerWidth-w-8,r.right-w))+'px';
+  m.style.top=(r.bottom+6+h>innerHeight?Math.max(8,r.top-h-6):r.bottom+6)+'px';
+}
+document.addEventListener('click',e=>{const m=$('#pmenu');if(m&&!e.target.closest('[data-pmore]'))m.remove()});
+addEventListener('scroll',()=>{const m=$('#pmenu');if(m)m.remove()},true);
 function saveProd(next){
   const name=$('#pn').value.trim(),n=id=>+$('#'+id).value||0,code=$('#pc').value.trim();
   if(!name)return alert('Nhập tên sản phẩm.');
@@ -2398,6 +2431,7 @@ document.addEventListener('click',e=>{
   else if('saveprodnext' in d)saveProd(true)
   else if('canceledit' in d){editing=null;pAddOpen=false;products()}
   else if(d.delprod)delProd(d.delprod);
+  else if(d.pmore)pMenu(b,d.pmore);
   else if(d.print)printInv(db.invoices.find(v=>v.no===d.print));
   else if(d.void)voidInv(d.void);
   else if('addcat' in d)addCat();
