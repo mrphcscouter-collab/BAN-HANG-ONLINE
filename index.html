@@ -460,6 +460,7 @@ select,input,button{font-family:inherit}
 #pmenu{position:fixed;z-index:120;min-width:150px;padding:6px;display:flex;flex-direction:column;background:rgba(255,255,255,.95);-webkit-backdrop-filter:saturate(180%) blur(24px);backdrop-filter:saturate(180%) blur(24px);border:.5px solid var(--line);border-radius:16px;box-shadow:0 16px 40px rgba(0,0,0,.2)}
 #pmenu button{border:0;background:none;text-align:left;padding:11px 14px;border-radius:10px;font-weight:500;color:var(--ink);min-height:40px}
 #pmenu button:hover{background:var(--fill)}#pmenu select{width:100%}
+.tag.ok{background:#e3f6e8;color:#1f7a3a}
 .iac .pmb{flex:none;padding:8px 20px}
 .cb{display:inline-flex;align-items:center;margin-left:6px;padding:3px 11px;border-radius:999px;background:var(--fill);font-size:13px;font-weight:600;color:var(--ac)!important;text-decoration:none}
 .ivf{display:flex;flex-wrap:wrap;gap:6px 5px;padding:2px 0;align-items:center}
@@ -571,6 +572,12 @@ function norm(){
    db.spays.sort((a,b)=>b.time-a.time)}
   {let mx=0;db.pays.forEach(x=>{const m=/^PT(\d+)$/.exec(x.no||'');if(m)mx=Math.max(mx,+m[1])});db.seqPT=Math.max(db.seqPT||1,mx+1);
    db.pays.filter(x=>!x.no).sort((a,b)=>a.time-b.time).forEach(x=>{x.no='PT'+String(db.seqPT++).padStart(4,'0')})}
+  /* Công nợ theo từng hóa đơn: sửa dữ liệu cũ, các khoản đã thu nợ được phân bổ vào hóa đơn cũ nhất trước (một lần) */
+  if(!db.debtAlloc){db.debtAlloc=1;(db.customers||[]).forEach(c=>{
+    const L=db.invoices.filter(v=>v.cid===c.id&&!v.void&&debtRem(v)>0).sort((a,b)=>a.time-b.time);
+    let ex=Math.round((L.reduce((t,v)=>t+debtRem(v),0)-(c.debt||0))*100)/100;
+    for(const v of L){if(ex<=0.005)break;const t=Math.min(debtRem(v),ex);v.debtPaid=Math.round(((v.debtPaid||0)+t)*100)/100;ex-=t}
+  })}
   db.products.forEach(p=>{p.status=p.status||'on';p.barcode=p.barcode||'';p.created=p.created||Date.now()});
   if((db.ver||0)<3){ /* v2 -> v3: mọi biến động có mã sản phẩm; tồn đầu kỳ để sổ kho cộng ra đúng tồn hiện tại */
     const by={},net={};db.products.forEach(p=>by[p.name]=p);
@@ -589,6 +596,15 @@ function norm(){
   if(!db.attrs)db.attrs=[{id:'a_size',name:'Kích thước',cat:'Gạch men',values:['30x60','40x40','60x60','80x80','60x120']},{id:'a_color',name:'Màu sắc',cat:'',values:['Trắng','Kem','Xám','Đen','Nâu','Xanh']},{id:'a_surf',name:'Bề mặt',cat:'Gạch men',values:['Bóng kiếng','Mờ','Nhám chống trơn','Vân đá','Vân gỗ']},{id:'a_cap',name:'Dung tích',cat:'Sơn nước',values:['1L','5L','18L']},{id:'a_ptype',name:'Loại sơn',cat:'Sơn nước',values:['Nội thất','Ngoại thất','Lót','Chống thấm']}];
   db.products.forEach(p=>{p.attrs=p.attrs||{};p.subs=p.subs||[];if(!p.units)p.units=p.box>0?[{name:p.unit==='m²'?'hộp':'thùng',per:p.box}]:[]});
   db.ver=5;
+}
+/* Nợ còn lại của một hóa đơn = nợ lúc bán − trừ khi trả hàng − đã thu nợ sau đó (v.debt giữ nguyên để báo cáo thu chi không bị lệch) */
+function debtRem(v){return Math.max(0,Math.round(((v.debt||0)-(v.debtCut||0)-(v.debtPaid||0))*100)/100)}
+/* Phân bổ tiền thu nợ vào các hóa đơn còn nợ của khách, cũ nhất trước */
+function allocDebt(cid,amt){
+  const out=[];let left=amt;
+  db.invoices.filter(v=>v.cid===cid&&!v.void&&debtRem(v)>0).sort((a,b)=>a.time-b.time).forEach(v=>{
+    if(left<=0.005)return;const t=Math.min(debtRem(v),left);v.debtPaid=Math.round(((v.debtPaid||0)+t)*100)/100;left=Math.round((left-t)*100)/100;out.push([v.no,t])});
+  return out;
 }
 function load(){
   try{const d=JSON.parse(localStorage.getItem(K));if(d&&d.products)return d}catch(e){}
@@ -822,14 +838,15 @@ function pay(){
   if(old&&!db.allowNeg){const need={};o.lines.forEach(i=>{need[i.id]=(need[i.id]||0)+i.qty});const bad=Object.keys(need).find(id=>prod(id).stock+(o.eq[id]||0)-need[id]<-0.0001);if(bad)return alert(`"${prod(bad).name}" không đủ tồn để lưu hóa đơn đã sửa.`)}
   if(old){ /* hoàn bản cũ: hàng về đúng ô kho đã trừ, công nợ cũ được trừ lại */
     old.items.forEach(i=>{const p=prod(i.id);p.stock=rd(p.stock+i.qty);mv(p,'Sửa HĐ (hoàn bản cũ)',i.qty,old.no,old.no,i.alloc?{alloc:i.alloc.map(([k,q])=>[k,-q])}:{})});
-    const c0=db.customers.find(x=>x.id===old.cid);if(c0)c0.debt=Math.max(0,(c0.debt||0)-(old.debt||0));
+    const c0=db.customers.find(x=>x.id===old.cid);if(c0)c0.debt=Math.max(0,(c0.debt||0)-debtRem(old));
   }
   const c=db.customers.find(x=>x.id===o.cid),debt=Math.max(0,t.total-pd);
   const inv={no:old?old.no:(db.prefix||'HD')+String(db.seq++).padStart(4,'0'),time:T.t,
     items:o.lines.map(i=>{const p=prod(i.id),price=uprice(i);p.stock=rd(p.stock-i.qty);mv(p,old?'Bán (sau khi sửa HĐ)':'Bán',-i.qty,'Bán hàng');return{id:p.id,name:p.name,price,qty:i.qty,unit:p.unit,cat:p.cat,cost:p.cost,...(String(i.note||'').trim()?{note:String(i.note).trim()}:{}),...((i.u||0)>0?(()=>{const u=urates(p)[i.u];return{un:u.name,uq:rd(i.qty/u.rate),up:Math.round(price*u.rate)}})():{})}}),
     sub:t.sub,disc:t.d,fee:t.fee,vat:t.vat,vatp:t.vat?t.rate:0,staff:(db.staff.find(x=>x.id===o.staff&&!x.locked)||{}).name||'',total:t.total,paid:pd,change:Math.max(0,pd-t.total),cid:c?c.id:'',cname:c?c.name:'Khách lẻ',cphone:c?c.phone||'':'',caddr:c?c.addr||'':'',debt,
     method:o.pay,addr:o.ship?o.addr.trim():'',note:o.note.trim()};
-  if(c)c.debt=(c.debt||0)+debt;
+  if(old&&old.cid===inv.cid&&old.debtPaid>0&&debt>0)inv.debtPaid=Math.min(old.debtPaid,debt); /* giữ phần nợ đã thu */
+  if(c)c.debt=(c.debt||0)+debt-(inv.debtPaid||0);
   {const n=inv.items.length;inv.items.forEach((it,k)=>{const m=db.moves[n-1-k];if(m){m.ref=inv.no;it.alloc=m.alloc}})}
   if(old)Object.assign(old,inv,{edited:Date.now()});else db.invoices.unshift(inv);
   db.invoices.sort((a,b)=>b.time-a.time);
@@ -1216,7 +1233,7 @@ const IVR=[['','Tất cả'],['today','Hôm nay'],['7d','7 ngày'],['month','Th�
 function ivFiltered(){
   const k=nz(ivQ).trim(),n=new Date(),d0=new Date(n.getFullYear(),n.getMonth(),n.getDate()).getTime();
   const t0=ivR==='today'?d0:ivR==='7d'?d0-6*864e5:ivR==='month'?new Date(n.getFullYear(),n.getMonth(),1).getTime():0;
-  return db.invoices.filter(v=>(!t0||v.time>=t0)&&(ivS!=='debt'||(v.debt>0&&!v.void))&&(ivS!=='void'||v.void)&&(!k||nz([v.no,v.cname||'khach le',v.items.map(i=>i.name+' '+(i.note||'')).join(' ')].join(' ')).includes(k)));
+  return db.invoices.filter(v=>(!t0||v.time>=t0)&&(ivS!=='debt'||(debtRem(v)>0&&!v.void))&&(ivS!=='void'||v.void)&&(!k||nz([v.no,v.cname||'khach le',v.items.map(i=>i.name+' '+(i.note||'')).join(' ')].join(' ')).includes(k)));
 }
 function dayLabel(t){
   const d=new Date(t),n=new Date(),k=x=>x.getFullYear()*400+x.getMonth()*32+x.getDate(),y=new Date(n.getFullYear(),n.getMonth(),n.getDate()-1);
@@ -1226,8 +1243,8 @@ function dayLabel(t){
 function invCard(v){
   const tm=new Date(v.time).toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit',hour12:false}),
    meta=[fmtT(v.time),MT[v.method]||'Tiền mặt',v.staff?'NV: '+esc(v.staff):''].filter(Boolean).join(' · '),
-   tags=[v.void?'<span class="tag">Đã hủy</span>':'',v.debt&&!v.void?'<span class="tag dbt">Còn nợ '+money(v.debt)+'</span>':'',v.items.some(i=>i.ret)?'<span class="tag rt">Có trả hàng</span>':'',v.edited?'<span class="tag ed">Đã sửa</span>':''].filter(Boolean).join(''),
-   ex=[v.vat?'VAT '+v.vatp+'%: '+money(v.vat):'',v.addr?'Giao đến: '+esc(v.addr):'',v.note?'Ghi chú: '+esc(v.note):''].filter(Boolean).join(' · ');
+   tags=[v.void?'<span class="tag">Đã hủy</span>':'',!v.void&&debtRem(v)>0?'<span class="tag dbt">Còn nợ '+money(debtRem(v))+'</span>':(!v.void&&v.debtPaid>0?'<span class="tag ok">Đã thu đủ nợ</span>':''),v.items.some(i=>i.ret)?'<span class="tag rt">Có trả hàng</span>':'',v.edited?'<span class="tag ed">Đã sửa</span>':''].filter(Boolean).join(''),
+   ex=[v.debtPaid>0?'Nợ ban đầu '+money(v.debt)+' · đã thu '+money(v.debtPaid):'',v.vat?'VAT '+v.vatp+'%: '+money(v.vat):'',v.addr?'Giao đến: '+esc(v.addr):'',v.note?'Ghi chú: '+esc(v.note):''].filter(Boolean).join(' · ');
   return `<div class="ic ${v.void?'void':''}"><div class="ih"><span><b class="ino">${v.no}</b> <span class="im">· ${tm}</span></span><b class="itot">${money(v.total)}</b></div>
    <div class="ivr2"><div class="ivl2"><div class="ics">${v.cid?'<b>'+esc(v.cname)+'</b>':'Khách lẻ'}</div>${tags?`<div class="itg">${tags}</div>`:''}<div class="ivt">${v.items.length} mặt hàng</div></div>
    <div class="iva"><button class="ghost" data-print="${v.no}">In</button>${v.void?'':`<button class="ghost pmb" data-ivmenu="${v.no}" title="Thêm" aria-label="Thêm">⋯</button>`}</div></div>
@@ -1273,7 +1290,7 @@ function voidInv(no){
   if(v.items.some(i=>i.ret))return alert('Hóa đơn này đã có trả hàng nên không thể hủy. Các phiếu trả hàng vẫn được lưu trong lịch sử.');
   if(!confirm(`Hủy hóa đơn ${no}? Hàng được trả lại kho. Hóa đơn vẫn được giữ trong lịch sử với trạng thái Đã hủy.`))return;
   v.items.forEach(i=>{const p=prod(i.id);if(p){p.stock=rd(p.stock+i.qty);mv(p,'Hủy HĐ',i.qty,no,no,i.alloc?{alloc:i.alloc.map(([k,q])=>[k,-q])}:{})}});
-  const c=db.customers.find(x=>x.id===v.cid);if(c)c.debt=Math.max(0,(c.debt||0)-(v.debt||0));
+  const c=db.customers.find(x=>x.id===v.cid);if(c)c.debt=Math.max(0,(c.debt||0)-debtRem(v));
   v.void=true;v.voidTime=Date.now();save();invoices();
 }
 
@@ -1354,7 +1371,7 @@ function rptAnalyze(key){
   Object.assign(A,{stk,act,slow30:slow(30),slow60:slow(60),slow90:slow(90),abc,runout,last,v30,out:act.filter(p=>p.stock<=0),low:act.filter(p=>p.stock>0&&p.stock<=(p.min||5)),
     stkPeriodDays:C.cogs>0?stk/(C.cogs/days):0});
   // công nợ
-  const debtors=db.customers.filter(c=>c.debt>0).map(c=>{const o=db.invoices.filter(v=>v.cid===c.id&&!v.void&&v.debt>0).reduce((m,v)=>Math.min(m,v.time),Date.now());return{c,age:Math.floor((Date.now()-o)/864e5)}}).sort((a,b)=>b.c.debt-a.c.debt);
+  const debtors=db.customers.filter(c=>c.debt>0).map(c=>{const o=db.invoices.filter(v=>v.cid===c.id&&!v.void&&debtRem(v)>0).reduce((m,v)=>Math.min(m,v.time),Date.now());return{c,age:Math.floor((Date.now()-o)/864e5)}}).sort((a,b)=>b.c.debt-a.c.debt);
   const cdebt=db.customers.reduce((s,c)=>s+(c.debt||0),0),sdebt=db.suppliers.reduce((s,c)=>s+(c.debt||0),0);
   Object.assign(A,{debtors,cdebt,sdebt,dso:C.rev>0?cdebt/(C.rev/days):0});
   // khách lâu không quay lại
@@ -1803,7 +1820,7 @@ function custView(){
    <div class="ivf" id="cchips"><button type="button" class="${custF?'':'on'}" data-cf="">Tất cả (${db.customers.length})</button><button type="button" class="${custF==='debt'?'on':''}" data-cf="debt">Đang nợ (${nd})</button></div>
    <div class="im" id="csum" style="margin:8px 2px 0">${db.customers.length} khách · tổng nợ <b style="color:${debt>0?'var(--red)':'inherit'}">${money(debt)}</b></div>
    <div class="ivl" id="clist" style="margin-top:10px">${custList()}</div></div>
-  <div class="card"><h2>Lịch sử thu nợ</h2><div class="ivl" style="margin-top:8px">${db.pays.slice(0,30).map(x=>`<div class="ic"><div class="ih"><span><b class="ino">${esc(x.no||'—')}</b> <span class="im">· ${fmtT(x.time)}</span></span><b class="itot">${money(x.amt)}</b></div><div class="ics"><b>${esc(x.name)}</b> <span class="im">· ${esc(MT[x.method]||'Tiền mặt')}</span></div>${x.note?`<div class="im">${esc(x.note)}</div>`:''}<div class="iac"><button class="ghost" data-ptprint="${esc(x.no||'')}">In</button></div></div>`).join('')||'<div class="empty" style="grid-column:1/-1">Chưa có lần thu nợ nào.</div>'}</div></div>`;
+  <div class="card"><h2>Lịch sử thu nợ</h2><div class="ivl" style="margin-top:8px">${db.pays.slice(0,30).map(x=>`<div class="ic"><div class="ih"><span><b class="ino">${esc(x.no||'—')}</b> <span class="im">· ${fmtT(x.time)}</span></span><b class="itot">${money(x.amt)}</b></div><div class="ics"><b>${esc(x.name)}</b> <span class="im">· ${esc(MT[x.method]||'Tiền mặt')}</span></div>${x.alloc&&x.alloc.length?`<div class="im">Thu cho: ${x.alloc.map(a=>esc(a[0])+' ('+money(a[1])+')').join(', ')}</div>`:''}${x.note?`<div class="im">${esc(x.note)}</div>`:''}<div class="iac"><button class="ghost" data-ptprint="${esc(x.no||'')}">In</button></div></div>`).join('')||'<div class="empty" style="grid-column:1/-1">Chưa có lần thu nợ nào.</div>'}</div></div>`;
   $('#cq').oninput=ev=>{custQ=ev.target.value;$('#clist').innerHTML=custList()};
 }
 function custList(){
@@ -1848,7 +1865,7 @@ function custHist(){
    rets=db.returns.filter(r=>ok.some(v=>v.no===r.inv)),rt=rets.reduce((t,r)=>t+r.total,0);
   return `<div class="card" id="chist"><div class="tools" style="justify-content:space-between;align-items:center"><h2 style="margin:0">Lịch sử mua hàng: ${esc(c.name)}</h2><button class="ghost" data-histx>Đóng</button></div>
   <div class="hs"><div><small>Số đơn</small><b>${ok.length}</b></div><div><small>Tổng đã mua</small><b>${money(tot)}</b></div><div><small>Đã trả hàng</small><b>${money(rt)}</b></div><div><small>Công nợ</small><b class="${c.debt>0?'low':''}">${money(c.debt||0)}</b></div></div>
-  <div class="ivl" style="margin-top:12px">${L.map(v=>`<div class="ic ${v.void?'void':''}"><div class="ih"><span><b class="ino">${v.no}</b> <span class="im">· ${fmtT(v.time)}</span></span><b class="itot">${money(v.total)}</b></div>${v.void||v.debt?`<div class="itg">${v.void?'<span class="tag">Đã hủy</span>':''}${v.debt&&!v.void?'<span class="tag dbt">Còn nợ '+money(v.debt)+'</span>':''}</div>`:''}<div class="iit">${v.items.map(i=>{const q=ln(i,'price');return `<div><span>${esc(i.name+(i.note?' ['+i.note+']':''))}${i.ret?' <small class="low">(đã trả '+rd(i.ret/ri(i))+')</small>':''}</span><b>×${q.q}${q.u?' '+esc(q.u):''}</b></div>`}).join('')}</div><div class="iac"><button class="ghost" data-print="${v.no}">In</button>${v.void?'':`<button class="ghost" data-rgo="${v.no}">Trả hàng</button>`}</div></div>`).join('')||'<div class="empty" style="grid-column:1/-1">Khách này chưa có hóa đơn nào.</div>'}</div>
+  <div class="ivl" style="margin-top:12px">${L.map(v=>`<div class="ic ${v.void?'void':''}"><div class="ih"><span><b class="ino">${v.no}</b> <span class="im">· ${fmtT(v.time)}</span></span><b class="itot">${money(v.total)}</b></div>${v.void||debtRem(v)>0||v.debtPaid>0?`<div class="itg">${v.void?'<span class="tag">Đã hủy</span>':''}${!v.void&&debtRem(v)>0?'<span class="tag dbt">Còn nợ '+money(debtRem(v))+'</span>':(!v.void&&v.debtPaid>0?'<span class="tag ok">Đã thu đủ nợ</span>':'')}</div>`:''}<div class="iit">${v.items.map(i=>{const q=ln(i,'price');return `<div><span>${esc(i.name+(i.note?' ['+i.note+']':''))}${i.ret?' <small class="low">(đã trả '+rd(i.ret/ri(i))+')</small>':''}</span><b>×${q.q}${q.u?' '+esc(q.u):''}</b></div>`}).join('')}</div><div class="iac"><button class="ghost" data-print="${v.no}">In</button>${v.void?'':`<button class="ghost" data-rgo="${v.no}">Trả hàng</button>`}</div></div>`).join('')||'<div class="empty" style="grid-column:1/-1">Khách này chưa có hóa đơn nào.</div>'}</div>
   ${rets.length?`<h2 style="margin-top:16px">Phiếu trả hàng</h2><div class="ivl" style="margin-top:8px">${rets.map(r=>`<div class="ic"><div class="ih"><span><b class="ino">${r.no}</b> <span class="im">· ${fmtT(r.time)}</span></span><b class="itot">${money(r.total)}</b></div><div class="im">Hóa đơn gốc: ${r.inv}</div><div class="iit">${r.items.map(i=>`<div><span>${esc(i.name)}</span><b>×${ln(i,'price').q}${i.un?' '+esc(i.un):''}</b></div>`).join('')}</div></div>`).join('')}</div>`:''}</div>`;
 }
 function delCust(id){
@@ -1885,7 +1902,7 @@ function payDebt(id){
     if(!(n>0)||n>D+1e-6)return;
     const T=timeIn(q('#dbt').value,t0);if(T.err){q('#dbe').textContent=T.err;return}
     const seq=db.seqPT||1,rec={no:'PT'+String(seq).padStart(4,'0'),time:T.t,cid:id,name:c.name,amt:n,method,note:q('#dbn').value.trim(),before:D,after:rd(D-n)};
-    db.seqPT=seq+1;c.debt=Math.max(0,rd(c.debt-n));db.pays.unshift(rec);db.pays.sort((a,b)=>b.time-a.time);db.pays=db.pays.slice(0,5000);
+    db.seqPT=seq+1;c.debt=Math.max(0,rd(c.debt-n));rec.alloc=allocDebt(id,n);db.pays.unshift(rec);db.pays.sort((a,b)=>b.time-a.time);db.pays=db.pays.slice(0,5000);
     db.ptPrint=q('#dbp').checked;save();close();custView();toast('Đã thu '+money(n)+' · '+rec.no);
     if(db.ptPrint)printPT(rec);
   };
@@ -2116,7 +2133,7 @@ function saveRet(){
   const no=X?X.no:'TH'+String(db.seqTH++).padStart(4,'0');
   const items=L.map(([k,q])=>{const i=v.items[k],p=prod(i.id);let al;i.ret=rd((i.ret||0)+q);if(p){p.stock=rd(p.stock+q);mv(p,X?'Trả hàng (sau khi sửa phiếu)':'Trả hàng',q,no+' ('+v.no+')',no);al=db.moves[0].alloc}return{k,id:i.id,name:i.name,unit:i.unit,cat:i.cat,qty:q,price:i.price,cost:i.cost||0,alloc:al,...(i.note?{note:i.note}:{}),...(i.un&&i.uq>0?{un:i.un,uq:rd6(q/ri(i))}:{})}});
   const total=Math.round(items.reduce((t,i)=>t+i.qty*i.price,0)*r),c=db.customers.find(x=>x.id===v.cid);let cut=0;
-  if(c&&v.debt){cut=Math.max(0,Math.min(total,c.debt||0,(v.debt||0)-(v.debtCut||0)));c.debt-=cut;v.debtCut=(v.debtCut||0)+cut}
+  if(c&&debtRem(v)>0){cut=Math.max(0,Math.min(total,c.debt||0,debtRem(v)));c.debt-=cut;v.debtCut=(v.debtCut||0)+cut}
   const rec={no,time:T.t,inv:v.no,cname:v.cname,items,total,cut,note:$('#rnote').value.trim()};
   if(X)Object.assign(X,rec,{edited:Date.now()});else db.returns.unshift(rec);
   db.returns.sort((a,b)=>b.time-a.time);
