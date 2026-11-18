@@ -460,6 +460,15 @@ select,input,button{font-family:inherit}
 #pmenu{position:fixed;z-index:120;min-width:150px;padding:6px;display:flex;flex-direction:column;background:rgba(255,255,255,.95);-webkit-backdrop-filter:saturate(180%) blur(24px);backdrop-filter:saturate(180%) blur(24px);border:.5px solid var(--line);border-radius:16px;box-shadow:0 16px 40px rgba(0,0,0,.2)}
 #pmenu button{border:0;background:none;text-align:left;padding:11px 14px;border-radius:10px;font-weight:500;color:var(--ink);min-height:40px}
 #pmenu button:hover{background:var(--fill)}#pmenu select{width:100%}
+#implist{margin-top:6px;align-items:start}#implist .ic{cursor:pointer;gap:8px}#implist .ic.open .ivt::after{content:" ▴"}#implist .ic.open .iex{display:flex}
+.quick button.on{background:var(--ac);color:#fff}
+.iadv{width:100%;text-align:left;margin-top:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ill{margin-top:8px}.il{display:flex;align-items:center;gap:14px;padding:10px 0;border-bottom:.5px solid var(--line)}
+.il .ilh{display:contents}.il .iln{flex:1;min-width:0;order:1;display:flex;flex-direction:column;gap:2px}.il .iln small{color:var(--mute);font-size:12.5px}.il .x{order:3}.il .ilf{order:2;display:flex;align-items:center;gap:10px}
+.il .ilq{display:flex;align-items:center;gap:4px}.il .qm{width:32px;height:32px;min-width:0;flex:none;border:0;border-radius:50%;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:20px;line-height:1;background:var(--acl,#e5f0ff);color:var(--ac)}
+.il .iq{width:64px;height:36px;padding:0 4px;text-align:center;font-weight:700;margin:0}.il .iu{width:auto;height:36px;margin:0 0 0 2px}.il .ilu{padding:0 6px;color:var(--mute);font-weight:600;white-space:nowrap}
+.il .ilx{color:var(--mute);font-weight:600}.il .icp{width:130px;height:36px;margin:0;text-align:right}.il .ila{min-width:120px;text-align:right;white-space:nowrap}.il .ila span{color:var(--mute)}
+@media(max-width:700px){.il{flex-direction:column;align-items:stretch;gap:8px}.il .ilh{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}.il .ilf{display:grid;grid-template-columns:max-content max-content minmax(0,1fr);gap:8px;align-items:center}.il .iq{width:44px}.il .qm{width:30px;height:30px}.il .iu{width:70px;padding:0 18px 0 8px;font-size:14px;background-position:right 6px center}.il .icp{width:100%;min-width:0;font-size:16px;padding:0 8px}.il .ilq{gap:3px}.il .ilf{gap:6px}.il .ila{grid-column:1/-1;font-size:16px}.il .iln b{font-size:15px}}
 .tag.ok{background:#e3f6e8;color:#1f7a3a}
 .iac .pmb{flex:none;padding:8px 20px}
 .cb{display:inline-flex;align-items:center;margin-left:6px;padding:3px 11px;border-radius:999px;background:var(--fill);font-size:13px;font-weight:600;color:var(--ac)!important;text-decoration:none}
@@ -578,6 +587,7 @@ function norm(){
     let ex=Math.round((L.reduce((t,v)=>t+debtRem(v),0)-(c.debt||0))*100)/100;
     for(const v of L){if(ex<=0.005)break;const t=Math.min(debtRem(v),ex);v.debtPaid=Math.round(((v.debtPaid||0)+t)*100)/100;ex-=t}
   })}
+  if(!db.debtAllocS){db.debtAllocS=1;(db.suppliers||[]).forEach(sp=>rebalDebt(db.imports.filter(i=>i.sid===sp.id),sp.debt||0))}
   db.products.forEach(p=>{p.status=p.status||'on';p.barcode=p.barcode||'';p.created=p.created||Date.now()});
   if((db.ver||0)<3){ /* v2 -> v3: mọi biến động có mã sản phẩm; tồn đầu kỳ để sổ kho cộng ra đúng tồn hiện tại */
     const by={},net={};db.products.forEach(p=>by[p.name]=p);
@@ -979,7 +989,7 @@ function xlMenu(btn){
   m.style.left=Math.max(8,Math.min(innerWidth-w-8,r.right-w))+'px';
   m.style.top=(r.bottom+6+h>innerHeight?Math.max(8,r.top-h-6):r.bottom+6)+'px';
 }
-document.addEventListener('click',e=>{const m=$('#pmenu');if(m&&!e.target.closest('[data-pmore],[data-xlmenu],[data-ppmenu],[data-ivmenu],[data-cmenu]')&&!(m.contains(e.target)&&!e.target.closest('button')))m.remove()});
+document.addEventListener('click',e=>{const m=$('#pmenu');if(m&&!e.target.closest('[data-pmore],[data-xlmenu],[data-ppmenu],[data-ivmenu],[data-cmenu],[data-smenu],[data-spmenu],[data-immenu]')&&!(m.contains(e.target)&&!e.target.closest('button')))m.remove()});
 addEventListener('scroll',()=>{const m=$('#pmenu');if(m)m.remove()},true);
 function saveProd(next){
   const name=$('#pn').value.trim(),n=id=>+$('#'+id).value||0,code=$('#pc').value.trim();
@@ -1284,7 +1294,7 @@ function ppMenu(btn){
   const m=popMenu(btn,'pp',`<div class="pmh" style="border:0;margin-top:6px">Khổ giấy khi bấm In</div><div style="padding:0 8px 8px">${paperSel().replace('Khổ giấy in','')}</div>`);
   if(m)m.querySelector('select').addEventListener('change',e=>{btn.textContent='🖨 '+(PPS[e.target.value]||e.target.value)});
 }
-document.addEventListener('click',e=>{const c=e.target.closest('#ivlist .ic');if(c&&!e.target.closest('button,a,select,input'))c.classList.toggle('open')});
+document.addEventListener('click',e=>{const c=e.target.closest('#ivlist .ic,#implist .ic');if(c&&!e.target.closest('button,a,select,input'))c.classList.toggle('open')});
 function voidInv(no){
   const v=db.invoices.find(x=>x.no===no);if(!v||v.void)return;
   if(v.items.some(i=>i.ret))return alert('Hóa đơn này đã có trả hàng nên không thể hủy. Các phiếu trả hàng vẫn được lưu trong lịch sử.');
@@ -1928,47 +1938,111 @@ document.addEventListener('click',e=>{const b=e.target.closest('[data-ptprint]')
 let spEdit=null,spSid='',spAmt='',spTime='',spNote='',spF='',editS=null,impF='',imp={sid:'',note:'',lines:[]},retNo='',retQ='';
 const plab=p=>(p.code?p.code+' - ':'')+p.name;
 const today=()=>new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,10);
-function supView(){
-  const e=db.suppliers.find(x=>x.id===editS);
-  $('#main').innerHTML=`<div class="card"><h2>${e?'Sửa nhà cung cấp':'Thêm nhà cung cấp'}</h2><div class="form" style="grid-template-columns:2fr 1fr 2fr 2fr auto auto"><label>Tên nhà cung cấp<input id="sn"></label><label>Điện thoại<input id="sp"></label><label>Địa chỉ<input id="sa"></label><label>Ghi chú<input id="sno"></label><button class="pri" data-savesup>${e?'Lưu':'Thêm'}</button>${e?'<button class="ghost" data-cancelsup>Hủy</button>':'<span></span>'}</div></div>
-  <div class="card"><h2>Danh sách nhà cung cấp (${db.suppliers.length}, tổng nợ ${money(db.suppliers.reduce((t,x)=>t+(x.debt||0),0))})</h2><table><tr><th>Tên</th><th>Điện thoại</th><th>Địa chỉ</th><th>Ghi chú</th><th class="n">Số phiếu nhập</th><th class="n">Tổng tiền nhập</th><th class="n">Còn nợ</th><th></th></tr>${db.suppliers.map(x=>{const L=db.imports.filter(i=>i.sid===x.id&&!i.void);return `<tr><td>${esc(x.name)}</td><td>${esc(x.phone||'')}</td><td>${esc(x.addr||'')}</td><td>${esc(x.note||'')}</td><td class="n">${L.length}</td><td class="n">${money(L.reduce((t,i)=>t+i.total,0))}</td><td class="n ${x.debt>0?'low':''}">${x.debt>0?'<b>'+money(x.debt)+'</b>':'—'}</td><td class="n pact">${x.debt>0?`<button class="ghost" data-paysup="${x.id}">Trả nợ</button>`:''}<button class="ghost" data-suphist="${x.id}">Lịch sử nhập</button><button class="ghost" data-editsup="${x.id}">Sửa</button><button class="ghost danger" data-delsup="${x.id}">Xóa</button></td></tr>`}).join('')||'<tr><td colspan="8" class="empty">Chưa có nhà cung cấp. Thêm nhà cung cấp để chọn khi lập phiếu nhập hàng.</td></tr>'}</table></div>
-  <div class="card" id="spcard"><h2>${spEdit?'Sửa phiếu trả nợ '+spEdit+' <button class="ghost" data-spcancel>Hủy sửa</button>':'Lập phiếu trả nợ nhà cung cấp'}</h2>
-  <div class="form" style="grid-template-columns:2fr 1fr 1.4fr"><label>Nhà cung cấp<select id="spsid" ${spEdit?'disabled':''}><option value="">Chọn nhà cung cấp</option>${db.suppliers.map(x=>`<option value="${x.id}">${esc(x.name)}${x.debt>0?' (nợ '+money(x.debt)+')':''}</option>`).join('')}</select></label><label>Số tiền trả<input id="spamt" type="number" min="0" value="${esc(spAmt)}"></label><label>Thời gian trả${spEdit?'':' <small>(để trống = bây giờ)</small>'}<input id="sptime" type="datetime-local" value="${esc(spTime)}" max="${toLocal(Date.now())}"></label></div>
-  <label>Ghi chú<input id="spnote" value="${esc(spNote)}" placeholder="Trả tiền mặt, chuyển khoản…"></label><div id="sphint" class="low"></div>
-  <div class="act"><button class="pri" data-savesp>${spEdit?'Lưu thay đổi phiếu':'Lập phiếu trả nợ'}</button></div></div>
-  ${(()=>{const L=db.spays.filter(x=>!spF||x.sid===spF);return `<div class="card"><div class="tools" style="justify-content:space-between;align-items:center;margin-bottom:10px"><h2 style="margin:0">Phiếu trả nợ nhà cung cấp (${L.length}, đã trả ${money(L.reduce((t,x)=>t+x.amt,0))})</h2><select id="spf" style="width:auto"><option value="">Tất cả nhà cung cấp</option>${db.suppliers.map(x=>`<option value="${x.id}" ${x.id===spF?'selected':''}>${esc(x.name)}</option>`).join('')}</select></div><table><tr><th>Số phiếu</th><th>Thời gian</th><th>Nhà cung cấp</th><th>Ghi chú</th><th class="n">Số tiền trả</th><th></th></tr>${L.slice(0,200).map(x=>`<tr><td>${x.no}</td><td>${fmtT(x.time)}${x.edited?'<br><small>đã sửa</small>':''}</td><td>${esc(x.name)}</td><td>${esc(x.note||'')}</td><td class="n"><b>${money(x.amt)}</b></td><td class="n pact"><button class="ghost" data-spedit="${x.no}">Sửa</button><button class="ghost danger" data-spdel="${x.no}">Xóa</button></td></tr>`).join('')||'<tr><td colspan="6" class="empty">Chưa có phiếu trả nợ nào.</td></tr>'}</table>${L.length>200?'<small>Hiển thị 200 phiếu mới nhất.</small>':''}</div>`})()}`;
-  if(e){$('#sn').value=e.name;$('#sp').value=e.phone||'';$('#sa').value=e.addr||'';$('#sno').value=e.note||''}
-  const spo=spEdit?db.spays.find(x=>x.no===spEdit):null;$('#spsid').value=spo?spo.sid:spSid;
-  const spHint=()=>{const c=db.suppliers.find(x=>x.id===$('#spsid').value);$('#sphint').textContent=c?(spo?'Số tiền tối đa có thể sửa thành: '+money((c.debt||0)+spo.amt):'Đang nợ '+c.name+': '+money(c.debt||0)):(spo?'Nhà cung cấp của phiếu này đã bị xóa, chỉ sửa được thời gian và ghi chú.':'')};
-  $('#spsid').onchange=()=>{spSid=$('#spsid').value;const c=db.suppliers.find(x=>x.id===spSid);if(!spo&&c)$('#spamt').value=c.debt||'';spHint()};
-  $('#spf').onchange=e=>{spF=e.target.value;supView()};spHint();
+let supQ='',supF='',spN=30;
+/* Làm khớp nợ từng phiếu với tổng nợ: dư thì trừ vào phiếu cũ nhất trước, thiếu thì trả lại cho phiếu mới được trả gần nhất */
+function rebalDebt(list,total){
+  const r2=x=>Math.round(x*100)/100,L=list.filter(v=>!v.void).sort((a,b)=>a.time-b.time);
+  let ex=r2(L.reduce((t,v)=>t+debtRem(v),0)-(total||0));
+  if(ex>0.005){for(const v of L){if(ex<=0.005)break;const t=Math.min(debtRem(v),ex);v.debtPaid=r2((v.debtPaid||0)+t);ex=r2(ex-t)}}
+  else if(ex<-0.005){let need=-ex;for(const v of L.slice().reverse()){if(need<=0.005)break;const t=Math.min(v.debtPaid||0,need);if(t>0){v.debtPaid=r2(v.debtPaid-t);need=r2(need-t)}}}
 }
-function paySup(id){const c=db.suppliers.find(x=>x.id===id);if(!c)return;spEdit=null;spSid=id;spAmt=c.debt||'';spTime='';spNote='';supView();$('#spcard').scrollIntoView();$('#spamt').focus({preventScroll:true})}
-function editSP(no){const x=db.spays.find(z=>z.no===no);if(!x)return;spEdit=no;spSid=x.sid;spAmt=x.amt;spTime=toLocal(x.time);spNote=x.note||'';supView();$('#spcard').scrollIntoView()}
-function spReset(){spEdit=null;spSid='';spAmt='';spTime='';spNote=''}
-function saveSP(){
-  const old=spEdit?db.spays.find(x=>x.no===spEdit):null;if(spEdit&&!old){spReset();return supView()}
-  const sid=old?old.sid:$('#spsid').value,c=db.suppliers.find(x=>x.id===sid),note=$('#spnote').value.trim();
-  const T=timeIn($('#sptime').value,old?old.time:Date.now());if(T.err)return alert(T.err);
-  if(old&&!c){Object.assign(old,{time:T.t,note,edited:Date.now()});db.spays.sort((a,b)=>b.time-a.time);spReset();save();supView();return toast('Đã lưu phiếu '+old.no)}
-  if(!c)return alert('Chọn nhà cung cấp.');
-  const n=+$('#spamt').value,max=rd((c.debt||0)+(old?old.amt:0));
-  if(!(n>0)||n>max+0.0001)return alert('Số tiền phải lớn hơn 0 và không vượt quá số nợ hiện tại ('+money(max)+').');
-  c.debt=Math.max(0,rd(max-n));
-  let rec=old;if(old)Object.assign(old,{time:T.t,amt:n,note,edited:Date.now()});else{rec={id:uid(),no:'TN'+String(db.seqTN++).padStart(4,'0'),time:T.t,sid,name:c.name,amt:n,note};db.spays.unshift(rec)}
-  db.spays.sort((a,b)=>b.time-a.time);spReset();save();supView();toast((old?'Đã lưu phiếu ':'Đã lập phiếu ')+rec.no+': trả '+money(n)+' cho '+c.name);
+function supView(){
+  const debt=db.suppliers.reduce((t,x)=>t+(x.debt||0),0),nd=db.suppliers.filter(x=>x.debt>0).length,Lp=db.spays.filter(x=>!spF||x.sid===spF);
+  $('#main').innerHTML=`<div class="card"><div style="display:flex;gap:8px;align-items:center;margin-bottom:10px"><input id="sq" type="search" value="${esc(supQ)}" placeholder="Tìm nhà cung cấp…" autocomplete="off" style="margin:0;flex:1;min-width:0"><button class="pri" data-addsup style="flex:none;margin:0;white-space:nowrap">+ Thêm NCC</button></div>
+   <div class="ivf"><button type="button" class="${supF?'':'on'}" data-sf="">Tất cả (${db.suppliers.length})</button><button type="button" class="${supF==='debt'?'on':''}" data-sf="debt">Đang nợ (${nd})</button></div>
+   <div class="im" style="margin:8px 2px 0">${db.suppliers.length} nhà cung cấp · tổng nợ <b style="color:${debt>0?'var(--red)':'inherit'}">${money(debt)}</b></div>
+   <div class="ivl" id="slist" style="margin-top:10px">${supList()}</div></div>
+  <div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><h2 style="margin:0">Phiếu trả nợ</h2><select id="spf" style="width:auto;max-width:100%"><option value="">Tất cả nhà cung cấp</option>${db.suppliers.map(x=>`<option value="${x.id}" ${x.id===spF?'selected':''}>${esc(x.name)}</option>`).join('')}</select></div>
+   <div class="im" style="margin:8px 2px 0">${Lp.length} phiếu · đã trả ${money(Lp.reduce((t,x)=>t+x.amt,0))}</div>
+   <div class="ivl" style="margin-top:10px">${Lp.slice(0,spN).map(x=>`<div class="ic"><div class="ih"><span><b class="ino">${x.no}</b> <span class="im">· ${fmtT(x.time)}${x.edited?' · đã sửa':''}</span></span><b class="itot">${money(x.amt)}</b></div><div class="ics"><b>${esc(x.name)}</b></div>${x.alloc&&x.alloc.length?`<div class="im">Trả cho: ${x.alloc.map(a=>esc(a[0])+' ('+money(a[1])+')').join(', ')}</div>`:''}${x.note?`<div class="im">${esc(x.note)}</div>`:''}<div class="iac"><button class="ghost" data-spedit="${x.no}">Sửa</button><button class="ghost pmb" data-spmenu="${x.no}" title="Thêm" aria-label="Thêm">⋯</button></div></div>`).join('')||'<div class="empty" style="grid-column:1/-1">Chưa có phiếu trả nợ.</div>'}${Lp.length>spN?`<div class="ivm"><button class="ghost" data-spmore>Xem thêm (còn ${Lp.length-spN})</button></div>`:''}</div></div>`;
+  $('#sq').oninput=ev=>{supQ=ev.target.value;$('#slist').innerHTML=supList()};
+  $('#spf').onchange=e=>{spF=e.target.value;spN=30;supView()};
+}
+function supList(){
+  const k=nz(supQ).trim();let L=db.suppliers.filter(x=>(!supF||x.debt>0)&&(!k||nz([x.name,x.phone,x.addr,x.note].join(' ')).includes(k)));
+  if(supF==='debt')L=L.slice().sort((a,b)=>(b.debt||0)-(a.debt||0));
+  return L.map(x=>{const I=db.imports.filter(i=>i.sid===x.id&&!i.void),dg=(x.phone||'').replace(/\D/g,'');
+   return `<div class="ic"><div class="ih"><b class="ino" style="color:var(--text,inherit)">${esc(x.name)}</b>${x.debt>0?`<span class="tag dbt">Nợ ${money(x.debt)}</span>`:''}</div>
+   ${x.phone?`<div class="ics">📞 ${esc(x.phone)}${dg?` <a class="cb" href="tel:${dg}">Gọi</a><a class="cb" href="https://zalo.me/${dg}" target="_blank" rel="noopener">Zalo</a>`:''}</div>`:''}${x.addr?`<div class="ics">📍 ${esc(x.addr)}</div>`:''}${x.note?`<div class="im">${esc(x.note)}</div>`:''}
+   <div class="im">Đã nhập: <b>${money(I.reduce((t,i)=>t+i.total,0))}</b> · ${I.length} phiếu</div>
+   <div class="iac">${x.debt>0?`<button class="pri" data-paysup="${x.id}">Trả nợ</button>`:''}<button class="ghost" data-suphist="${x.id}">Lịch sử nhập</button><button class="ghost pmb" data-smenu="${x.id}" title="Thêm" aria-label="Thêm">⋯</button></div></div>`}).join('')||'<div class="empty" style="grid-column:1/-1">'+(supQ||supF?'Không tìm thấy nhà cung cấp phù hợp.':'Chưa có nhà cung cấp. Bấm "+ Thêm NCC" để theo dõi nhập hàng và công nợ.')+'</div>';
+}
+function sMenu(btn,id){popMenu(btn,'s'+id,`<button data-editsup="${id}">Sửa thông tin</button><button class="dg" data-delsup="${id}">Xóa nhà cung cấp</button>`)}
+function spMenu(btn,no){popMenu(btn,'sp'+no,`<button class="dg" data-spdel="${no}">Xóa phiếu trả nợ</button>`)}
+function supForm(id,cb){
+  const e=id?db.suppliers.find(x=>x.id===id):null;if(id&&!e)return;
+  const old=document.querySelector('.dbm');if(old)old.remove();
+  const el=document.createElement('div');el.className='dbm';
+  el.innerHTML=`<div class="dbs" role="dialog" aria-modal="true" aria-label="${e?'Sửa nhà cung cấp':'Thêm nhà cung cấp'}">
+   <div class="dbh"><div class="dbt1">${e?'Sửa nhà cung cấp':'Thêm nhà cung cấp'}</div></div>
+   <div class="dbb"><label>Tên nhà cung cấp <b style="color:var(--red)">*</b><input id="sn" autocomplete="off"></label><label>Số điện thoại <small>(tùy chọn)</small><input id="sp" type="tel" inputmode="tel" autocomplete="off"></label><label>Địa chỉ <small>(tùy chọn)</small><input id="sa" autocomplete="off"></label><label>Ghi chú <small>(tùy chọn)</small><input id="sno" autocomplete="off"></label><div class="low" id="serr" style="min-height:20px"></div></div>
+   <div class="dbf"><button type="button" class="ghost" data-x>Hủy</button><button type="button" class="pri" id="sok">${e?'Lưu thay đổi':'Thêm nhà cung cấp'}</button></div></div>`;
+  document.body.appendChild(el);
+  const q=x=>el.querySelector(x),close=()=>{el.remove();document.removeEventListener('keydown',kd,true)},kd=ev=>{if(ev.key==='Escape')close()};
+  document.addEventListener('keydown',kd,true);
+  if(e){q('#sn').value=e.name;q('#sp').value=e.phone||'';q('#sa').value=e.addr||'';q('#sno').value=e.note||''}
+  const doSave=()=>{
+    const name=q('#sn').value.trim();if(!name){q('#serr').textContent='Nhập tên nhà cung cấp.';return}
+    const d={name,phone:q('#sp').value.trim(),addr:q('#sa').value.trim(),note:q('#sno').value.trim()};
+    let ns=e;if(e){Object.assign(e,d);db.imports.forEach(i=>{if(i.sid===e.id)i.sname=name})}else{ns={id:uid(),...d};db.suppliers.push(ns)}
+    close();save();if(cb&&!e)cb(ns);else supView();
+  };
+  q('#sok').onclick=doSave;
+  el.onclick=ev=>{const b=ev.target.closest('button');if(ev.target===el||(b&&b.dataset.x!==undefined))close()};
+  el.addEventListener('keydown',ev=>{if(ev.key==='Enter'&&ev.target.tagName==='INPUT'){ev.preventDefault();doSave()}});
+  setTimeout(()=>q('#sn').focus(),60);
+}
+function editSP(no){paySup(null,no)}
+function paySup(id,editNo){
+  const old=editNo?db.spays.find(z=>z.no===editNo):null;if(editNo&&!old)return;
+  const sid=old?old.sid:id,c=db.suppliers.find(x=>x.id===sid);
+  if(!old&&(!c||!(c.debt>0)))return;
+  const prev=document.querySelector('.dbm');if(prev)prev.remove();
+  const D=c?rd((c.debt||0)+(old?old.amt:0)):old.amt,t0=old?old.time:Date.now(),no=old?old.no:'TN'+String(db.seqTN||1).padStart(4,'0'),fm=v=>v?Math.round(v).toLocaleString('vi-VN'):'';
+  let n=old?old.amt:D;
+  const el=document.createElement('div');el.className='dbm';
+  el.innerHTML=`<div class="dbs" role="dialog" aria-modal="true" aria-label="Phiếu trả nợ nhà cung cấp">
+   <div class="dbh"><div><div class="dbt1">${old?'Sửa phiếu trả nợ':'Phiếu trả nợ'}</div><small>Trả tiền cho nhà cung cấp</small></div><span class="dbno">${esc(no)}</span></div>
+   <div class="dbb">
+    <label>Ngày giờ trả<input type="datetime-local" id="dbt" value="${toLocal(t0)}" max="${toLocal(Date.now())}"></label>
+    <div class="dbc"><div class="dbc1"><b>${esc(old?old.name:c.name)}</b><span class="dbd">${old?'Nợ trước phiếu này':'Nợ hiện tại'} <b>${money(D)}</b></span></div>${c&&c.phone?'<div><small>Điện thoại:</small> '+esc(c.phone)+'</div>':''}${c?'':'<div><small>Nhà cung cấp đã bị xóa, chỉ sửa được thời gian và ghi chú.</small></div>'}</div>
+    <label>Số tiền trả (đồng)<input id="dba" class="dba" inputmode="numeric" autocomplete="off" value="${fm(n)}" ${c?'':'readonly'}></label>
+    <div class="dbw" id="dbw"></div>
+    ${c?'<div class="quick" style="margin:8px 0 12px"><button type="button" data-f="all">Trả hết nợ</button><button type="button" data-f="half">Một nửa</button></div><div class="dbr"><span>Nợ còn lại sau khi trả</span><b id="dbl"></b></div>':''}
+    <label style="margin-top:12px">Ghi chú / nội dung trả<input id="dbn" placeholder="Trả tiền mặt, chuyển khoản…"></label>
+    <div class="low" id="dbe" style="min-height:20px"></div>
+   </div>
+   <div class="dbf"><button type="button" class="ghost" data-x>Hủy</button><button type="button" class="pri" id="dbok">${old?'Lưu thay đổi':'Xác nhận trả tiền'}</button></div></div>`;
+  document.body.appendChild(el);
+  const q=x=>el.querySelector(x),close=()=>{el.remove();document.removeEventListener('keydown',kd,true)};
+  q('#dbn').value=old?old.note||'':'';
+  const upd=()=>{if(!c)return;const bad=n>D+1e-6;q('#dbw').textContent=n>0&&!bad?moneyWords(n):'';q('#dbl').textContent=money(Math.max(0,D-n));q('#dbe').textContent=bad?'Số tiền trả không được vượt quá số nợ ('+money(D)+').':'';q('#dbok').disabled=!(n>0)||bad};
+  const setN=v=>{n=v;q('#dba').value=fm(n);upd()};
+  const go2=()=>{
+    const T=timeIn(q('#dbt').value,t0);if(T.err){q('#dbe').textContent=T.err;return}
+    const note=q('#dbn').value.trim();
+    if(!c){Object.assign(old,{time:T.t,note,edited:Date.now()});db.spays.sort((a,b)=>b.time-a.time);close();save();supView();return toast('Đã lưu phiếu '+old.no)}
+    if(!(n>0)||n>D+1e-6)return;
+    const before={};db.imports.forEach(i=>{if(i.sid===sid)before[i.no]=i.debtPaid||0});
+    c.debt=Math.max(0,rd(D-n));
+    let rec=old;if(old)Object.assign(old,{time:T.t,amt:n,note,edited:Date.now()});else{rec={id:uid(),no:'TN'+String(db.seqTN++).padStart(4,'0'),time:T.t,sid,name:c.name,amt:n,note};db.spays.unshift(rec)}
+    rebalDebt(db.imports.filter(i=>i.sid===sid),c.debt);
+    if(!old)rec.alloc=db.imports.filter(i=>i.sid===sid&&(i.debtPaid||0)-(before[i.no]||0)>0.005).sort((a,b)=>a.time-b.time).map(i=>[i.no,Math.round(((i.debtPaid||0)-(before[i.no]||0))*100)/100]);
+    else delete rec.alloc;
+    db.spays.sort((a,b)=>b.time-a.time);close();save();supView();toast((old?'Đã lưu phiếu ':'Đã lập phiếu ')+rec.no+': trả '+money(n)+' cho '+c.name);
+  };
+  const kd=e=>{if(e.key==='Escape'){e.stopPropagation();close()}else if(e.key==='Enter'&&e.target.id!=='dbn'&&e.target.tagName!=='BUTTON'){e.preventDefault();go2()}};
+  document.addEventListener('keydown',kd,true);
+  q('#dba').oninput=e=>{const d=e.target.value.replace(/\D/g,'');n=+d||0;e.target.value=fm(n);upd()};
+  el.onclick=e=>{const b=e.target.closest('button');if(e.target===el||(b&&b.dataset.x!==undefined))return close();if(b&&b.dataset.f)setN(b.dataset.f==='all'?D:Math.round(D/2))};
+  q('#dbok').onclick=go2;upd();
+  setTimeout(()=>{const a=q('#dba');a.focus();a.select()},60);
 }
 function delSP(no){
   const x=db.spays.find(z=>z.no===no);if(!x)return;const c=db.suppliers.find(z=>z.id===x.sid);
   if(!confirm(`Xóa phiếu trả nợ ${no} (${money(x.amt)} trả ${x.name})?\n\n${c?'Số tiền này được cộng lại vào công nợ của nhà cung cấp.':'Nhà cung cấp đã bị xóa nên công nợ không thay đổi.'}`))return;
-  if(c)c.debt=rd((c.debt||0)+x.amt);
-  db.spays=db.spays.filter(z=>z!==x);if(spEdit===no)spReset();save();supView();toast('Đã xóa phiếu trả nợ '+no);
-}
-function saveSup(){
-  const name=$('#sn').value.trim();if(!name)return alert('Nhập tên nhà cung cấp.');
-  const d={name,phone:$('#sp').value.trim(),addr:$('#sa').value.trim(),note:$('#sno').value.trim()},e=db.suppliers.find(x=>x.id===editS);
-  if(e){Object.assign(e,d);db.imports.forEach(i=>{if(i.sid===e.id)i.sname=name})}else db.suppliers.push({id:uid(),...d});
-  editS=null;save();supView();
+  if(c){c.debt=rd((c.debt||0)+x.amt);rebalDebt(db.imports.filter(i=>i.sid===c.id),c.debt)}
+  db.spays=db.spays.filter(z=>z!==x);save();supView();toast('Đã xóa phiếu trả nợ '+no);
 }
 function delSup(id){
   const x=db.suppliers.find(s=>s.id===id),n=db.imports.filter(i=>i.sid===id).length;
@@ -1980,18 +2054,22 @@ function delSup(id){
 const itot=()=>{const t=imp.lines.reduce((s,l)=>s+l.qty*l.cost,0);$('#itot').textContent=money(t);const pd=imp.paid===''||imp.paid==null?t:Math.max(0,+imp.paid||0),e=$('#idebt');if(e)e.textContent=pd<t?'Còn nợ nhà cung cấp: '+money(Math.round(t-pd)):''};
 function impView(){
   const L=db.imports.filter(x=>!impF||x.sid===impF),so=db.suppliers.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join('');
+  const advTxt=whName(imp.wid||db.defWh)+(imp.lid?' / '+locName(imp.lid):'')+' · '+(imp.time?imp.time.replace('T',' '):'Bây giờ');
   $('#main').innerHTML=`<div class="card"><h2>${imp.edit?'Sửa phiếu nhập '+imp.edit+' <button class="ghost" data-iedcancel>Hủy sửa</button>':'Phiếu nhập hàng mới'}</h2>
-  <div class="form" style="grid-template-columns:1fr"><div class="clab" style="margin:0">Nhà cung cấp<div class="cbox"><input id="isq" type="search" autocomplete="off" placeholder="Không chọn (gõ tên hoặc số điện thoại để tìm nhà cung cấp)"><div id="isl" class="cl" hidden></div></div></div><select id="isup" hidden><option value="">Không chọn</option>${so}</select></div>
-  <div class="form" style="grid-template-columns:1fr 1fr;margin-top:10px"><label>Kho nhập hàng<select id="iwh">${whOpts(imp.wid||db.defWh)}</select></label><label>Vị trí / kệ<select id="ilc">${locOpts(imp.wid||db.defWh,imp.lid)}</select></label></div>
+  <div style="display:flex;gap:8px;align-items:flex-end"><div class="clab" style="margin:0;flex:1;min-width:0">Nhà cung cấp<div class="cbox"><input id="isq" type="search" autocomplete="off" placeholder="Chọn nhà cung cấp (không bắt buộc)"><div id="isl" class="cl" hidden></div></div></div><button class="ghost" data-inewsup style="flex:none;margin:0 0 0 0;white-space:nowrap;min-height:44px">+ NCC</button></div><select id="isup" hidden><option value="">Không chọn</option>${so}</select>
+  <div class="sb" style="margin-top:12px"><select id="ics"><option value="">Tất cả danh mục</option>${catOpts(icat)}</select><div class="sw"><input id="iq" placeholder="Tìm hàng để thêm vào phiếu: tên, mã, thương hiệu…" autocomplete="off"><div id="ires" class="res" hidden></div></div></div>
+  <div id="ilines"></div>
+  <button type="button" class="ghost iadv" data-iadv>⚙ Tùy chọn · ${esc(advTxt)} ${impAdv?'▴':'▾'}</button>
+  <div id="iadvp" ${impAdv?'':'hidden'}><div class="form" style="grid-template-columns:1fr 1fr;margin-top:10px"><label>Kho nhập hàng<select id="iwh">${whOpts(imp.wid||db.defWh)}</select></label><label>Vị trí / kệ<select id="ilc">${locOpts(imp.wid||db.defWh,imp.lid)}</select></label></div>
   <label style="margin-top:10px;max-width:280px">Thời gian nhập${imp.edit?'':' <small>(để trống = bây giờ)</small>'}<input type="datetime-local" id="itime" value="${esc(imp.time||'')}" max="${toLocal(Date.now())}"></label>
-  <div class="sb" style="margin-top:14px"><select id="ics"><option value="">Tất cả danh mục</option>${catOpts(icat)}</select><div class="sw"><input id="iq" placeholder="Tìm hàng để thêm vào phiếu nhập: tên, mã, thương hiệu, quy cách…" autocomplete="off"><div id="ires" class="res" hidden></div></div></div>
-  <div id="ilines"></div><label style="margin-top:12px">Ghi chú phiếu nhập<input id="inote"></label>
-  <label class="chk"><input type="checkbox" id="icost" checked>Cập nhật giá vốn (bình quân gia quyền)</label>
+  <label class="chk"><input type="checkbox" id="icost" checked>Cập nhật giá vốn (bình quân gia quyền)</label></div>
+  <label style="margin-top:12px">Ghi chú phiếu nhập<input id="inote"></label>
   <div class="row big"><span>Tổng tiền nhập</span><span id="itot"></span></div>
-  <div class="row"><span>Đã trả nhà cung cấp</span><input id="ipaid" class="ri2" type="number" min="0" placeholder="Trả đủ" value="${esc(imp.paid==null?'':imp.paid)}"></div><div id="idebt" class="low" style="text-align:right"></div>
+  <div class="row"><span>Đã trả nhà cung cấp</span><input id="ipaid" class="ri2" inputmode="numeric" autocomplete="off" placeholder="Trả đủ" value="${imp.paid===''||imp.paid==null?'':fmtN(+imp.paid)}"></div>
+  <div class="quick" id="ipq" style="justify-content:flex-end;margin:8px 0 0"></div><div id="idebt" class="low" style="text-align:right"></div>
   <div class="act"><button class="ghost" data-iclear>Xóa phiếu</button><button class="pri" data-isave>${imp.edit?'Lưu thay đổi phiếu':'Lưu phiếu nhập'}</button></div></div>
-  <div class="card"><div class="tools" style="justify-content:space-between;align-items:center;margin-bottom:10px"><h2 style="margin:0">Lịch sử nhập hàng (${L.length})</h2>${paperSel()}<select id="ifl" style="width:auto"><option value="">Tất cả nhà cung cấp</option>${db.suppliers.map(x=>`<option value="${x.id}" ${x.id===impF?'selected':''}>${esc(x.name)}</option>`).join('')}</select></div>
-  <table><tr><th>Số phiếu</th><th>Thời gian</th><th>Nhà cung cấp</th><th>Hàng hóa</th><th class="n">Tổng tiền</th><th></th></tr>${L.map(x=>`<tr class="${x.void?'void':''}"><td>${x.no}${x.void?' <span class="tag">Đã hủy</span>':''}</td><td>${fmtT(x.time)}</td><td>${esc(x.sname||'—')}<br><small>${esc(whName(x.wid||db.defWh))}${x.lid?' / '+esc(locName(x.lid)):''}</small></td><td>${esc(x.items.map(i=>{const l=ln(i,'cost');return i.name+' ×'+l.q+(i.un?' '+i.un:'')+' ('+money(l.pr)+')'}).join(', '))}${x.note?'<br><small>'+esc(x.note)+'</small>':''}</td><td class="n">${money(x.total)}${x.debt&&!x.void?'<br><small class="low">còn nợ '+money(x.debt)+'</small>':''}${x.edited?'<br><small>đã sửa</small>':''}</td><td class="n"><button class="ghost" data-iprint="${x.no}">In</button>${x.void?'':`<button class="ghost" data-iedit="${x.no}">Sửa</button><button class="ghost danger" data-ivoid="${x.no}">Hủy</button>`}<button class="ghost danger" data-idel="${x.no}">Xóa hẳn</button></td></tr>`).join('')||'<tr><td colspan="6" class="empty">Chưa có phiếu nhập nào.</td></tr>'}</table></div>`;
+  <div class="card"><h2>Lịch sử nhập hàng</h2><div style="display:flex;gap:8px;align-items:center;margin-bottom:10px"><input id="imq" type="search" placeholder="Tìm số phiếu, nhà cung cấp, tên hàng…" autocomplete="off" value="${esc(impQ)}" style="margin:0;flex:1;min-width:0"><button class="ghost" id="ppbtn" data-ppmenu title="Khổ giấy in" style="flex:none;margin:0;white-space:nowrap">🖨 ${PPS[db.paper||'A4']||'A4'}</button></div>
+  <div class="ivf" id="imchips"></div><div class="im" id="imsum" style="margin:8px 2px 0"></div><div class="ivl" id="implist"></div></div>`;
   $('#isup').value=imp.sid;$('#inote').value=imp.note;
 
   {const sq=$('#isq'),sl=$('#isl');let ss=[],sh=-1;
@@ -2007,7 +2085,7 @@ function impView(){
    sq.onblur=()=>setTimeout(()=>{sl.hidden=true;sq.value=lab()},150);
    sq.onkeydown=ev=>{if(ev.key==='ArrowDown'){ev.preventDefault();sh=Math.min(ss.length-1,sh+1);markS()}else if(ev.key==='ArrowUp'){ev.preventDefault();sh=Math.max(0,sh-1);markS()}else if(ev.key==='Enter'){ev.preventDefault();if(ss[sh])pickS(ss[sh].id)}else if(ev.key==='Escape'){sq.blur()}};
    sl.onmousedown=ev=>{ev.preventDefault();const it=ev.target.closest('[data-i]');if(it)pickS(ss[+it.dataset.i].id)};}
-  $('#isup').onchange=e=>{imp.sid=e.target.value};$('#iwh').onchange=e=>{imp.wid=e.target.value;imp.lid='';impView()};$('#ilc').onchange=e=>{imp.lid=e.target.value};$('#inote').oninput=e=>{imp.note=e.target.value};$('#itime').onchange=e=>{imp.time=e.target.value};$('#ipaid').oninput=e=>{imp.paid=e.target.value;itot()};
+  $('#isup').onchange=e=>{imp.sid=e.target.value};$('#iwh').onchange=e=>{imp.wid=e.target.value;imp.lid='';impView()};$('#ilc').onchange=e=>{imp.lid=e.target.value};$('#inote').oninput=e=>{imp.note=e.target.value};$('#itime').onchange=e=>{imp.time=e.target.value};{const pe=$('#ipaid');pe.oninput=e=>{const d=pe.value.replace(/\D/g,'');imp.paid=d;pe.value=d?fmtN(+d):'';itot();impPaidChips()};pe.onfocus=()=>pe.select()}
   {const qi=$('#iq'),res=$('#ires');qi.value=iq;
    qi.oninput=()=>{iq=qi.value;ihi=0;showIRes()};qi.onfocus=()=>showIRes();qi.onblur=()=>setTimeout(()=>{res.hidden=true},120);
    qi.onkeydown=e=>{const L=imatches().slice(0,8);
@@ -2017,15 +2095,51 @@ function impView(){
     else if(e.key==='Escape')res.hidden=true};
    res.onmousedown=e=>{e.preventDefault();const r=e.target.closest('[data-r]');if(r)pickImp(r.dataset.r)};
    $('#ics').onchange=e=>{icat=e.target.value;ihi=0;showIRes();qi.focus()}}
-  $('#ifl').onchange=e=>{impF=e.target.value;impView()};
-  drawI();
+  $('#imq').oninput=e=>{impQ=e.target.value;impN=20;drawImpList()};
+  impChips();drawImpList();drawI();impPaidChips();
 }
 function drawI(){
-  $('#ilines').innerHTML=imp.lines.length?`<table><tr><th>Mặt hàng</th><th class="n">Số lượng</th><th class="n">Giá vốn nhập</th><th class="n">Thành tiền</th><th></th></tr>${imp.lines.map((l,k)=>{const p=prod(l.id),ur=urates(p),r=(ur[l.u||0]||ur[0]).rate;return `<tr><td>${esc(p.name)}<br><small>${esc(p.unit)}, tồn ${rd(p.stock)}, giá vốn hiện tại ${money(p.cost)}</small></td><td class="n"><input class="iq pi" type="number" min="0" step="any" data-i="${k}" value="${rd(l.qty/r)}">${ur.length>1?`<select class="iu" data-i="${k}">${ur.map((u,x)=>`<option value="${x}" ${x===(l.u||0)?'selected':''}>${esc(u.name)}</option>`).join('')}</select>`:' '+esc(p.unit)}</td><td class="n"><input class="ic pi" type="number" min="0" data-i="${k}" value="${rdp(l.cost*r)}"></td><td class="n" id="ia${k}">${money(l.qty*l.cost)}</td><td><button class="x" data-irm="${k}">×</button></td></tr>`}).join('')}</table>`:'<div class="emp" style="padding:24px">Chưa có dòng hàng. Gõ tên hoặc mã hàng ở ô tìm kiếm phía trên rồi chọn.</div>';
-  document.querySelectorAll('.iq,.ic').forEach(el=>el.oninput=()=>{const l=imp.lines[+el.dataset.i],r=urates(prod(l.id))[l.u||0].rate,v=Math.max(0,+el.value||0);if(el.classList.contains('iq'))l.qty=rd(v*r);else l.cost=v/r;$('#ia'+el.dataset.i).textContent=money(l.qty*l.cost);itot()});
-  document.querySelectorAll('.iu').forEach(el=>el.onchange=()=>{imp.lines[+el.dataset.i].u=+el.value;drawI()});
+  $('#ilines').innerHTML=imp.lines.length?`<div class="ill">${imp.lines.map((l,k)=>{const p=prod(l.id),ur=urates(p),r=(ur[l.u||0]||ur[0]).rate;return `<div class="il"><div class="ilh"><div class="iln"><b>${esc(p.name)}</b><small>Tồn ${rd(p.stock)} ${esc(p.unit)} · vốn hiện tại ${money(p.cost)}</small></div><button class="x" data-irm="${k}" aria-label="Xóa dòng">×</button></div>
+   <div class="ilf"><div class="ilq"><button type="button" class="qm" data-idec="${k}" aria-label="Giảm">−</button><input class="iq" type="number" min="0" step="any" inputmode="decimal" data-i="${k}" value="${rd(l.qty/r)}"><button type="button" class="qm" data-iinc="${k}" aria-label="Tăng">+</button>${ur.length>1?`<select class="iu" data-i="${k}">${ur.map((u,x)=>`<option value="${x}" ${x===(l.u||0)?'selected':''}>${esc(u.name)}</option>`).join('')}</select>`:`<span class="ilu">${esc(p.unit)}</span>`}</div><span class="ilx">×</span><input class="icp" inputmode="numeric" autocomplete="off" data-i="${k}" value="${fmtN(l.cost*r)}"><div class="ila"><span>=</span> <b id="ia${k}">${money(l.qty*l.cost)}</b></div></div></div>`}).join('')}</div>`:'<div class="emp" style="padding:24px">Chưa có dòng hàng. Gõ tên hoặc mã hàng ở ô tìm kiếm phía trên rồi chọn.</div>';
+  const upd=k=>{$('#ia'+k).textContent=money(imp.lines[k].qty*imp.lines[k].cost);itot()},RT=l=>urates(prod(l.id))[l.u||0].rate;
+  document.querySelectorAll('.il .iq').forEach(el=>el.oninput=()=>{const k=+el.dataset.i,l=imp.lines[k];l.qty=rd(Math.max(0,+el.value||0)*RT(l));upd(k)});
+  document.querySelectorAll('.il .icp').forEach(el=>{el.oninput=()=>{const k=+el.dataset.i,l=imp.lines[k],d=el.value.replace(/\\D/g,''),n=+d||0,pos=el.value.length-el.selectionStart;el.value=d?fmtN(n):'';const np=Math.max(0,el.value.length-pos);try{el.setSelectionRange(np,np)}catch(e){}l.cost=n/RT(l);upd(k)};el.onfocus=()=>el.select()});
+  document.querySelectorAll('.il [data-idec]').forEach(el=>el.onclick=()=>{const k=+el.dataset.idec,l=imp.lines[k],nq=rd(l.qty-stepOf(l,prod(l.id)));if(nq<=0.0001)imp.lines.splice(k,1);else l.qty=nq;drawI()});
+  document.querySelectorAll('.il [data-iinc]').forEach(el=>el.onclick=()=>{const l=imp.lines[+el.dataset.iinc];l.qty=rd(l.qty+stepOf(l,prod(l.id)));drawI()});
+  document.querySelectorAll('.il .iu').forEach(el=>el.onchange=()=>{imp.lines[+el.dataset.i].u=+el.value;drawI()});
   itot();
 }
+let impQ='',impR='',impS='',impN=20,impAdv=false;
+function impPaidChips(){const e=$('#ipq');if(e)e.innerHTML=`<button type="button" class="${imp.paid===''||imp.paid==null?'on':''}" data-ipq="full">Trả đủ</button><button type="button" class="${imp.paid==='0'?'on':''}" data-ipq="none">Chưa trả (ghi nợ hết)</button>`}
+function impChips(){
+  const e=$('#imchips');if(!e)return;const sp=impF?db.suppliers.find(x=>x.id===impF):null;
+  e.innerHTML=IVR.map(([k,l])=>`<button type="button" class="${impR===k?'on':''}" data-imr="${k}">${l}</button>`).join('')+'<i></i>'+IVS.map(([k,l])=>`<button type="button" class="${impS===k?'on':''}" data-ims="${k}">${l}</button>`).join('')+(impF?`<button type="button" class="on" data-imfx>NCC: ${esc(sp?sp.name:'đã xóa')} ✕</button>`:'');
+}
+function impFiltered(){
+  const k=nz(impQ).trim(),n=new Date(),d0=new Date(n.getFullYear(),n.getMonth(),n.getDate()).getTime();
+  const t0=impR==='today'?d0:impR==='7d'?d0-6*864e5:impR==='month'?new Date(n.getFullYear(),n.getMonth(),1).getTime():0;
+  return db.imports.filter(x=>(!impF||x.sid===impF)&&(!t0||x.time>=t0)&&(impS!=='debt'||(debtRem(x)>0&&!x.void))&&(impS!=='void'||x.void)&&(!k||nz([x.no,x.sname||'',x.note||'',x.items.map(i=>i.name).join(' ')].join(' ')).includes(k)));
+}
+function impCard(x){
+  const tm=new Date(x.time).toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit',hour12:false}),
+   tags=[x.void?'<span class="tag">Đã hủy</span>':'',!x.void&&debtRem(x)>0?'<span class="tag dbt">Còn nợ '+money(debtRem(x))+'</span>':(!x.void&&x.debtPaid>0?'<span class="tag ok">Đã trả đủ nợ</span>':''),x.edited?'<span class="tag ed">Đã sửa</span>':''].filter(Boolean).join('');
+  return `<div class="ic ${x.void?'void':''}"><div class="ih"><span><b class="ino">${x.no}</b> <span class="im">· ${tm}</span></span><b class="itot">${money(x.total)}</b></div>
+   <div class="ivr2"><div class="ivl2"><div class="ics">${x.sname?'<b>'+esc(x.sname)+'</b>':'Không chọn nhà cung cấp'}</div>${tags?`<div class="itg">${tags}</div>`:''}<div class="ivt">${x.items.length} mặt hàng</div></div>
+   <div class="iva"><button class="ghost" data-iprint="${x.no}">In</button><button class="ghost pmb" data-immenu="${x.no}" title="Thêm" aria-label="Thêm">⋯</button></div></div>
+   <div class="iex"><div class="iit">${x.items.map(i=>{const l=ln(i,'cost');return `<div><span>${esc(i.name)} <small class="low">${money(l.pr)}</small></span><b>×${l.q}${i.un?' '+esc(i.un):''}</b></div>`}).join('')}</div><div class="im">${fmtT(x.time)} · ${esc(whName(x.wid||db.defWh))}${x.lid?' / '+esc(locName(x.lid)):''}</div>${x.note?`<div class="im">Ghi chú: ${esc(x.note)}</div>`:''}</div></div>`;
+}
+function drawImpList(){
+  const el=$('#implist');if(!el)return;
+  const L=impFiltered(),shown=L.slice(0,impN),dk=t=>{const d=new Date(t);return d.getFullYear()*400+d.getMonth()*32+d.getDate()},tot={};
+  L.forEach(v=>{const g=tot[dk(v.time)]||(tot[dk(v.time)]={n:0,s:0,x:0});if(v.void)g.x++;else{g.n++;g.s+=v.total}});
+  let last=null,h='';
+  shown.forEach(v=>{const k=dk(v.time);if(k!==last){last=k;const g=tot[k];h+=`<div class="ivd"><span>${dayLabel(v.time)}</span><small>${g.n} phiếu · ${money(g.s)}${g.x?' · '+g.x+' đã hủy':''}</small></div>`}h+=impCard(v)});
+  if(L.length>shown.length)h+=`<div class="ivm"><button class="ghost" data-imore>Xem thêm ${Math.min(20,L.length-shown.length)} phiếu (còn ${L.length-shown.length})</button></div>`;
+  el.innerHTML=h||'<div class="empty" style="grid-column:1/-1">'+(db.imports.length?'Không có phiếu nhập nào khớp bộ lọc.':'Chưa có phiếu nhập nào.')+'</div>';
+  const act=impQ||impR||impS||impF,lv=L.filter(v=>!v.void),nv=db.imports.length-db.imports.filter(v=>!v.void).length;
+  $('#imsum').textContent=act?`${L.length} phiếu khớp · tổng ${money(lv.reduce((t,v)=>t+v.total,0))}`:`${db.imports.length-nv} phiếu hiệu lực${nv?' · '+nv+' đã hủy':''}`;
+}
+function imMenu(btn,no){const x=db.imports.find(z=>z.no===no);if(!x)return;popMenu(btn,'im'+no,`${x.void?'':`<button data-iedit="${no}">Sửa phiếu nhập</button><button class="dg" data-ivoid="${no}">Hủy phiếu nhập</button>`}<button class="dg" data-idel="${no}">Xóa hẳn khỏi lịch sử</button>`)}
 let iq='',icat='',ihi=0;
 const imatches=()=>{const k=nz(iq);return db.products.filter(p=>inCat(p,icat)&&(!k||nz(ptext(p)).includes(k)))};
 function showIRes(){
@@ -2055,13 +2169,14 @@ function saveImp(){
       const nq=L.filter(l=>l.id===it.id).reduce((t,l)=>t+l.qty,0),same=bk(ow,ol)===bk(w,lc);
       if(!db.allowNeg&&(balOf(p,ow,ol)-it.qty+(same?nq:0)<0||p.stock-it.qty+nq<0))return alert(`Không sửa được: sau khi trừ phiếu cũ, "${p.name}" sẽ bị âm tồn vì hàng đã bán hoặc đã chuyển đi. Hãy kiểm tra lại số lượng.`);
     }
-    {const s0=db.suppliers.find(x=>x.id===old.sid);if(s0)s0.debt=Math.max(0,(s0.debt||0)-(old.debt||0))}
+    {const s0=db.suppliers.find(x=>x.id===old.sid);if(s0)s0.debt=Math.max(0,(s0.debt||0)-debtRem(old))}
     old.items.forEach(it=>{const p=prod(it.id);p.stock=rd(p.stock-it.qty);mv(p,'Sửa phiếu nhập (trừ bản cũ)',-it.qty,'',old.no,{alloc:[[bk(old.wid||db.defWh,old.lid||''),-it.qty]]})});
   }
   const no=old?old.no:'PN'+String(db.seqPN++).padStart(4,'0');
   const items=L.map(l=>{const p=prod(l.id),b=Math.max(0,p.stock);if(upc)p.cost=b+l.qty>0?Math.round((b*(p.cost||0)+l.qty*l.cost)/(b+l.qty)):l.cost;p.stock=rd(p.stock+l.qty);mv(p,old?'Nhập (sau khi sửa phiếu)':'Nhập',l.qty,s?s.name:'',no,{wid:w,lid:lc});const ur=urates(p),uu=ur[l.u||0]||ur[0];return{id:p.id,name:p.name,unit:p.unit,qty:l.qty,cost:l.cost,...(uu.rate!==1?{un:uu.name,uq:rd6(l.qty/uu.rate)}:{})}});
   const rec={no,time:T.t,sid:s?s.id:'',sname:s?s.name:'',items,total:items.reduce((t,i)=>t+i.qty*i.cost,0),wid:w,lid:lc,note:imp.note.trim(),paid:Math.round(pd),debt:Math.max(0,Math.round(tot-pd))};
-  if(s&&rec.debt)s.debt=(s.debt||0)+rec.debt;
+  rec.debtPaid=(old&&old.sid===rec.sid&&old.debtPaid>0&&rec.debt>0)?Math.min(old.debtPaid,rec.debt):0; /* giữ phần nợ đã trả */
+  if(s&&rec.debt)s.debt=(s.debt||0)+rec.debt-rec.debtPaid;
   if(old)Object.assign(old,rec,{edited:Date.now()});else db.imports.unshift(rec);
   db.imports.sort((a,b)=>b.time-a.time);
   imp={sid:'',note:'',lines:[]};save();impView();toast((old?'Đã lưu thay đổi phiếu ':'Đã lưu phiếu nhập ')+no);
@@ -2074,7 +2189,7 @@ function voidImport(no){
     if(!db.allowNeg&&(balOf(p,w,l)-it.qty<0||p.stock-it.qty<0))return alert(`Không hủy được: "${p.name}" đã được bán hoặc chuyển đi nên tồn kho không đủ để trừ lại phiếu nhập này.`)}
   if(!confirm(`Hủy phiếu nhập ${no}? Hàng của phiếu được trừ khỏi kho. Phiếu vẫn được giữ trong lịch sử với trạng thái Đã hủy.\n\nLưu ý: giá vốn bình quân của sản phẩm đã được cập nhật lúc nhập sẽ không tự tính lại; nếu cần hãy chỉnh giá vốn ở thẻ Sản phẩm.`))return;
   x.items.forEach(it=>{const p=prod(it.id);if(p){p.stock=rd(p.stock-it.qty);mv(p,'Hủy phiếu nhập',-it.qty,x.sname||'',x.no,{alloc:[[bk(w,l),-it.qty]]})}});
-  {const sp=db.suppliers.find(z=>z.id===x.sid);if(sp&&x.debt)sp.debt=Math.max(0,(sp.debt||0)-x.debt)}
+  {const sp=db.suppliers.find(z=>z.id===x.sid);if(sp&&debtRem(x)>0)sp.debt=Math.max(0,(sp.debt||0)-debtRem(x))}
   x.void=true;x.voidTime=Date.now();save();impView();toast('Đã hủy phiếu nhập '+no);
 }
 
@@ -2084,7 +2199,7 @@ function delImport(no){
   if(!x.void)for(const it of x.items){const p=prod(it.id);if(!p)continue;
     if(!db.allowNeg&&(balOf(p,w,l)-it.qty<0||p.stock-it.qty<0))return alert(`Không xóa được: "${p.name}" đã được bán hoặc chuyển đi nên tồn kho không đủ để trừ lại phiếu nhập này.`)}
   if(!confirm(`XÓA HẲN phiếu nhập ${no}?\n\n${x.void?'Phiếu đã hủy trước đó, kho không thay đổi thêm.':'Hàng của phiếu sẽ được trừ khỏi kho.'}\nPhiếu biến mất khỏi lịch sử và không khôi phục được (các dòng trong sổ kho vẫn được giữ). Giá vốn bình quân không tự tính lại.\n\nBạn chắc chắn muốn xóa?`))return;
-  if(!x.void){const sp=db.suppliers.find(z=>z.id===x.sid);if(sp&&x.debt)sp.debt=Math.max(0,(sp.debt||0)-x.debt)}
+  if(!x.void){const sp=db.suppliers.find(z=>z.id===x.sid);if(sp&&debtRem(x)>0)sp.debt=Math.max(0,(sp.debt||0)-debtRem(x))}
   if(!x.void)x.items.forEach(it=>{const p=prod(it.id);if(p){p.stock=rd(p.stock-it.qty);mv(p,'Xóa phiếu nhập',-it.qty,x.sname||'',x.no,{alloc:[[bk(w,l),-it.qty]]})}});
   db.imports=db.imports.filter(z=>z!==x);
   if(imp.edit===no)imp={sid:'',note:'',lines:[]};
@@ -2591,11 +2706,19 @@ document.addEventListener('click',e=>{
   else if('qcnew' in d){qcOpen=true;drawPanel()}
   else if('qccancel' in d){qcOpen=false;drawPanel()}
   else if('qcsave' in d)saveQC();
+  else if('imr' in d){impR=d.imr;impN=20;impChips();drawImpList()}
+  else if('ims' in d){impS=impS===d.ims?'':d.ims;impN=20;impChips();drawImpList()}
+  else if('imfx' in d){impF='';impN=20;impChips();drawImpList()}
+  else if('imore' in d){impN+=20;drawImpList()}
+  else if(d.immenu)imMenu(b,d.immenu);
+  else if('iadv' in d){impAdv=!impAdv;$('#iadvp').hidden=!impAdv;b.textContent=b.textContent.replace(/[▴▾]\s*$/,impAdv?'▴':'▾')}
+  else if('inewsup' in d)supForm(null,ns=>{imp.sid=ns.id;impView()});
+  else if(d.ipq){imp.paid=d.ipq==='none'?'0':'';$('#ipaid').value=imp.paid==='0'?'0':'';impPaidChips();itot()}
   else if(d.iprint)printImport(d.iprint);
   else if(d.iedit)editImport(d.iedit);
   else if(d.paysup)paySup(d.paysup);
-  else if('savesp' in d)saveSP();
-  else if('spcancel' in d){spReset();supView()}
+  else if(d.spmenu)spMenu(b,d.spmenu);
+  else if('spmore' in d){spN+=30;supView()}
   else if(d.spedit)editSP(d.spedit);
   else if(d.spdel)delSP(d.spdel);
   else if(d.ivoid)voidImport(d.ivoid);
@@ -2640,9 +2763,10 @@ document.addEventListener('click',e=>{
   else if('kksave' in d){save();toast('Đã lưu tạm phiên kiểm kê')}
   else if('kkfin' in d)kkFinish();
   else if('kkdel' in d){if(confirm('Xóa phiên kiểm kê đang làm dở? Chưa có điều chỉnh nào được ghi vào kho.')){db.counts=db.counts.filter(x=>x.id!==kkOpen);kkOpen=null;save();kKK()}}
-  else if('savesup' in d)saveSup();
-  else if(d.editsup){editS=d.editsup;supView();scrollTo(0,0)}
-  else if('cancelsup' in d){editS=null;supView()}
+  else if('addsup' in d)supForm();
+  else if(d.editsup)supForm(d.editsup);
+  else if(d.smenu)sMenu(b,d.smenu);
+  else if('sf' in d){supF=d.sf;supView()}
   else if(d.delsup)delSup(d.delsup);
   else if(d.suphist){impF=d.suphist;go('imports')}
   else if(d.irm){imp.lines.splice(+d.irm,1);drawI()}
