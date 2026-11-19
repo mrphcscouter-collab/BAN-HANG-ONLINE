@@ -533,7 +533,35 @@ select,input,button{font-family:inherit}
 <div id="rc"></div>
 <div id="toast"></div>
 <button id="fx" type="button" onclick="toggleFocus()">Thoát chế độ tập trung (F8)</button>
-<style id="pgstyle"></style>
+<style id="pgstyle">
+/* sản phẩm: thẻ, chip, form cửa sổ */
+.pbar{display:flex;gap:8px;margin-bottom:10px;align-items:center}.pbar button{margin:0!important;min-height:44px!important;height:44px;padding:0 16px!important;white-space:nowrap;flex:none}.pbar .pri{flex:1}.pbar .ghost.on{background:var(--acl);color:var(--ac)}
+.psb{display:flex;gap:8px;margin-bottom:8px}.psb input{flex:1;min-width:0}.psb select{width:132px;flex:none}
+.pcr{flex-wrap:nowrap!important;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;margin:0 -2px 6px;padding:2px}.pcr::-webkit-scrollbar{display:none}.pcr button{white-space:nowrap}.pcr i{flex:none}
+.pcr button.wn:not(.on){color:var(--red)}
+.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:10px;margin-top:6px;align-items:start}
+.pc{gap:6px}.pnm{font-size:16px;line-height:1.3;overflow-wrap:anywhere}.ppr{text-align:right;flex:none;display:flex;flex-direction:column}.ppr .itot{color:var(--ac)}
+.pst{font-weight:600;font-size:14.5px}.pst.low{color:var(--red)}
+.pfg{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}.pfg label{margin:0}.pfg .f2{grid-column:1/-1}
+.pdt{border-top:.5px solid var(--line);padding:2px 0}.pdt>summary{color:var(--ink);cursor:pointer;padding:12px 0;font-weight:600;list-style:none;display:flex;justify-content:space-between;gap:8px;align-items:baseline}.pdt>summary::-webkit-details-marker{display:none}.pdt>summary::after{content:"▾";color:var(--mute);order:3}.pdt[open]>summary::after{content:"▴"}.pdt>summary small{color:var(--mute);font-weight:400;margin-left:auto;text-align:right}
+.pdt>.pfg,.pdt>div{padding-bottom:12px}
+.qhl{display:flex;gap:8px;align-items:center;justify-content:space-between}.qh{flex:none;width:26px;height:26px;min-height:0!important;padding:0!important;border-radius:50%!important;border:0;background:var(--fill);color:var(--mute);font-weight:700;font-size:13px;margin:0}.qh.on{background:var(--acl);color:var(--ac)}.qhh{display:block;margin:6px 0;color:var(--mute);line-height:1.45}.qhh[hidden]{display:none}
+.pcl{margin:0;min-height:36px;padding:4px 12px}
+@media(max-width:700px){.pdt>summary small{display:none}.pgrid{grid-template-columns:1fr}.psb select{width:116px}.pfm .dbb{padding:14px 16px 4px}}
+
+/* kho hàng */
+.kst{display:grid;grid-template-columns:1.5fr 1fr 1fr;gap:8px;margin-bottom:12px}
+.ks{background:#fff;border:1px solid var(--line);border-radius:14px;padding:10px 12px;text-align:left;display:flex;flex-direction:column;gap:2px;margin:0;min-height:0;color:var(--ink)}
+.ks small{color:var(--mute);font-size:12.5px;font-weight:500}.ks b{font-size:19px;letter-spacing:-.02em}
+button.ks.on{background:var(--acl);border-color:var(--ac)}
+.kfp{margin-bottom:10px}.kfp[hidden]{display:none}
+.seg{display:flex;background:var(--fill);border-radius:12px;padding:3px;gap:3px;margin-bottom:12px}.seg button{flex:1;margin:0;border:0;background:none;min-height:40px;border-radius:10px;font-weight:600;color:var(--ink)}.seg button.on{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.15)}
+.ppr select.su{width:auto;min-height:30px;padding:2px 8px;font-size:13px;margin-top:2px}
+.kkr{display:flex;gap:12px;align-items:flex-end}.kkr label{flex:1;margin:0}.kkr .pi{width:100%;text-align:left}.kdv{flex:none;min-width:80px;display:flex;flex-direction:column;align-items:flex-end}.kdv b{font-size:18px}
+.xl{display:grid;gap:8px;margin:10px 0}.xr .pi{width:100%;text-align:left}.xr label{margin:0}.xr .x{flex:none}
+.otabs{overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none}.otabs::-webkit-scrollbar{display:none}.ot{flex:none}
+@media(max-width:700px){.stats{grid-template-columns:1fr 1fr}.stat{padding:10px}.stat b{font-size:18px}.kst .ks b{font-size:16px}}
+</style>
 <input type="file" id="file" accept=".json" hidden>
 <input type="file" id="fcsv" accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
 
@@ -917,7 +945,8 @@ document.addEventListener('keydown',e=>{
 function toggleFocus(){if(tab!=='sell')return;document.body.classList.toggle('focus');const q=$('#q');if(q)q.focus()}
 
 /* ---------- Sản phẩm ---------- */
-let pSearch='',pSt='',ipv=null,cloneFrom=null;
+let pSearch='',pSt='',ipv=null,cloneFrom=null,pSort='az',pLim=30,pMg=false,pKd=null;
+const pnum=id=>+String($('#'+id).value).replace(/\D/g,'')||0;
 function delProd(id){
   const p=prod(id);if(!p)return;
   const ni=db.invoices.filter(v=>v.items.some(i=>i.id===id)).length,np=db.imports.filter(v=>v.items.some(i=>i.id===id)).length,nr=db.returns.filter(v=>v.items.some(i=>i.id===id)).length,st=rd(p.stock||0);
@@ -930,51 +959,94 @@ function delProd(id){
   save();products();toast('Đã xóa sản phẩm '+p.name);
 }
 const usedP=p=>db.invoices.some(v=>v.items.some(i=>i.id===p.id))||db.imports.some(v=>v.items.some(i=>i.id===p.id))||db.moves.some(m=>m.pid===p.id&&m.type!=='Tồn đầu kỳ');
+function pChips(){
+  const root=db.cats.filter(c=>catDepth(c)===0),par=(fc&&db.cats.some(c=>c.startsWith(fc+' > ')))?fc:(fc.includes(' > ')?fc.slice(0,fc.lastIndexOf(' > ')):''),kids=par?db.cats.filter(c=>c.startsWith(par+' > ')&&catDepth(c)===catDepth(par)+1):[];
+  const act=c=>fc===c||fc.startsWith(c+' > '),ch=(c,l,on)=>`<button data-pfc="${esc(c)}" class="${on?'on':''}">${esc(l)}</button>`;
+  const lowN=db.products.filter(p=>stOK(p,'low')).length,outN=db.products.filter(p=>stOK(p,'out')).length,negN=db.products.filter(p=>stOK(p,'neg')).length,offN=db.products.filter(p=>p.status==='off').length;
+  const qs=[['low','Sắp hết',lowN],['out','Hết hàng',outN],['neg','Tồn âm',negN],['off','Ngừng bán',offN]].filter(x=>x[2]||pSt===x[0]).map(([v,l,n])=>`<button data-pfs="${v}" class="${pSt===v?'on':''} ${v==='low'||v==='out'||v==='neg'?'wn':''}">${l}${n?' '+n:''}</button>`).join('');
+  $('#pchips').innerHTML=`<div class="ivf pcr">${qs}${qs&&root.length?'<i></i>':''}${root.length?ch('','Tất cả',!fc)+root.map(c=>ch(c,catLeaf(c),act(c))).join(''):''}</div>`+(kids.length?`<div class="ivf pcr pc2">${ch(par,'Tất cả '+catLeaf(par),fc===par)}${kids.map(c=>ch(c,catLeaf(c),act(c))).join('')}</div>`:'');
+}
 function products(){
-  const e=editing?prod(editing):null,cs=!e&&cloneFrom?prod(cloneFrom):null;
-  if(e||cs||ipv)pAddOpen=true;const addOpen=pAddOpen;
-  $('#main').innerHTML=`<div id="padd" ${addOpen?'':'hidden'}><div class="tools" style="justify-content:flex-end;margin-bottom:8px"><button class="ghost" data-toggleadd>Đóng ✕</button></div><div class="card"><h2>${e?'Sửa sản phẩm':cs?'Sao chép sản phẩm <small>(từ: '+esc(cs.name)+')</small> <button class="ghost" data-clonecancel>Hủy sao chép</button>':'Thêm sản phẩm'}</h2><div class="form" style="grid-template-columns:repeat(4,1fr)">
-   <label style="grid-column:span 2">Tên sản phẩm<input id="pn"></label><label>Mã hàng (SKU)<input id="pc"></label><label>Barcode<input id="pbc"></label>
-   <label>Danh mục<select id="pg">${catOpts('')}</select></label>
-   <label>Thương hiệu<input id="pb" placeholder="Viglacera, Dulux, Inax…"></label><label>Quy cách / màu<input id="pq" placeholder="60x60 cm, bóng kiếng…"></label>
-   <label>Đơn vị tính<input id="pu" list="units" placeholder="m², viên, thùng…"></label>
-   <div id="pattrs" class="form" style="grid-column:span 4;grid-template-columns:repeat(4,1fr)"></div><div id="punits" style="grid-column:span 4"></div>
-   <label>Giá vốn (đ)<input id="pk" type="number" min="0"></label><label>Giá bán lẻ (đ)<input id="pp" type="number" min="0"></label>
-   <label>Giá thợ / sỉ (đ)<input id="pw" type="number" min="0"></label><label>Báo sắp hết khi tồn ≤<input id="pm" type="number" min="0" step="any" placeholder="5"></label>
-   <div id="pstock" style="grid-column:span 4"></div><input id="ps" type="hidden">
-   <div class="tools" style="grid-column:span 2;align-items:end"><button class="pri" data-saveprod>${e?'Lưu thay đổi':cs?'Thêm bản sao':'Thêm'}</button>${cs?'<button class="ghost" data-saveprodnext>Thêm và sao chép tiếp</button>':''}${e?'<button class="ghost" data-canceledit>Hủy</button>':''}</div></div>
-   <datalist id="units">${UNITS.map(u=>`<option>${u}</option>`).join('')}</datalist></div>
-  ${ipv?`<div class="card"><h2>Xem trước nhập từ file</h2><p>${ipv.out.filter(o=>!o.ex).length} sản phẩm mới, ${ipv.out.filter(o=>o.ex).length} sản phẩm cập nhật theo SKU (chỉ ghi đè các ô có dữ liệu), ${ipv.err.length} dòng lỗi.</p>${ipv.err.slice(0,8).map(x=>`<div class="low">${esc(x)}</div>`).join('')}${ipv.out.length?`<table><tr><th>SKU</th><th>Tên</th><th>Danh mục</th><th class="n">Giá lẻ</th><th class="n">Tồn đầu</th><th></th></tr>${ipv.out.slice(0,6).map(o=>`<tr><td>${esc(o.d.code)}</td><td>${esc(o.d.name||(prod(o.ex)||{}).name||'')}</td><td>${esc(o.d.cat)}</td><td class="n">${money(o.d.price)}</td><td class="n">${o.ex?'—':o.stock}</td><td>${o.ex?'Cập nhật':'Mới'}</td></tr>`).join('')}</table>${ipv.out.length>6?'<small>… và '+(ipv.out.length-6)+' dòng khác</small>':''}`:''}<div class="tools" style="margin-top:12px"><button class="pri" data-ipgo ${ipv.out.length?'':'disabled'}>Nhập ${ipv.out.length} dòng hợp lệ</button><button class="ghost" data-ipx>Hủy</button></div></div>`:''}
-  <div class="card"><h2>Quản lý danh mục (tối đa 3 cấp)</h2>
+  $('#main').innerHTML=`${ipv?`<div class="card"><h2>Xem trước nhập từ file</h2><p>${ipv.out.filter(o=>!o.ex).length} sản phẩm mới, ${ipv.out.filter(o=>o.ex).length} sản phẩm cập nhật theo SKU (chỉ ghi đè các ô có dữ liệu), ${ipv.err.length} dòng lỗi.</p>${ipv.err.slice(0,8).map(x=>`<div class="low">${esc(x)}</div>`).join('')}${ipv.out.length?`<table><tr><th>SKU</th><th>Tên</th><th>Danh mục</th><th class="n">Giá lẻ</th><th class="n">Tồn đầu</th><th></th></tr>${ipv.out.slice(0,6).map(o=>`<tr><td>${esc(o.d.code)}</td><td>${esc(o.d.name||(prod(o.ex)||{}).name||'')}</td><td>${esc(o.d.cat)}</td><td class="n">${money(o.d.price)}</td><td class="n">${o.ex?'—':o.stock}</td><td>${o.ex?'Cập nhật':'Mới'}</td></tr>`).join('')}</table>${ipv.out.length>6?'<small>… và '+(ipv.out.length-6)+' dòng khác</small>':''}`:''}<div class="tools" style="margin-top:12px"><button class="pri" data-ipgo ${ipv.out.length?'':'disabled'}>Nhập ${ipv.out.length} dòng hợp lệ</button><button class="ghost" data-ipx>Hủy</button></div></div>`:''}
+  <div id="pmg" ${pMg?'':'hidden'}><div class="card"><h2>Quản lý danh mục (tối đa 3 cấp)</h2>
    <div class="form" style="grid-template-columns:1fr 1fr auto;margin-bottom:12px"><label>Tên danh mục mới<input id="nc" placeholder="Đồ điện, Gạch lát nền…"></label><label>Nằm trong danh mục cha<select id="npar"><option value="">Không có (danh mục gốc)</option>${catOpts('',2)}</select></label><button class="pri" data-addcat>Thêm danh mục</button></div>
    ${SUG.some(x=>!db.cats.includes(x))?`<small>Gợi ý danh mục gốc, bấm để thêm nhanh:</small><div class="chips" style="margin:6px 0 14px">${SUG.map((x,i)=>db.cats.includes(x)?'':`<button data-sug="${i}">+ ${esc(x)}</button>`).join('')}</div>`:''}
    <table><tr><th>Danh mục</th><th class="n">Sản phẩm (gồm danh mục con)</th><th></th></tr>${catSorted().map(c=>`<tr><td style="padding-left:${8+catDepth(c)*22}px">${catDepth(c)?'└ ':''}${esc(catLeaf(c))}</td><td class="n">${db.products.filter(p=>inCat(p,c)).length}</td><td class="n"><button class="ghost" data-rencat="${db.cats.indexOf(c)}">Đổi tên</button><button class="ghost danger" data-delcat="${db.cats.indexOf(c)}">Xóa</button></td></tr>`).join('')}</table></div>
   <div class="card"><h2>Thuộc tính hàng hóa</h2>
    <div class="form" style="grid-template-columns:1fr 1fr 2fr auto;margin-bottom:12px"><label>Tên thuộc tính<input id="an" placeholder="Kích thước, Màu, Đường kính…"></label><label>Áp dụng cho danh mục<select id="ac"><option value="">Tất cả danh mục</option>${catOpts()}</select></label><label>Giá trị gợi ý (cách nhau bằng dấu phẩy)<input id="av" placeholder="60x60, 80x80"></label><button class="pri" data-aadd>Thêm thuộc tính</button></div>
-   <table><tr><th>Thuộc tính</th><th>Áp dụng cho</th><th>Giá trị gợi ý</th><th class="n">Sản phẩm đang dùng</th><th></th></tr>${db.attrs.map(a=>`<tr><td>${esc(a.name)}</td><td>${a.cat?esc(a.cat):'Tất cả danh mục'}</td><td>${esc(a.values.join(', '))}</td><td class="n">${db.products.filter(p=>(p.attrs||{})[a.id]).length}</td><td class="n"><button class="ghost" data-aval="${a.id}">Giá trị</button><button class="ghost" data-aren="${a.id}">Đổi tên</button><button class="ghost danger" data-adel="${a.id}">Xóa</button></td></tr>`).join('')||'<tr><td colspan="5" class="empty">Chưa có thuộc tính.</td></tr>'}</table><small>Thuộc tính áp dụng cho cả danh mục con. Khi lọc theo một danh mục, bảng sản phẩm hiện thêm ô lọc theo từng thuộc tính.</small></div>
-  </div>
-    <div class="card"><div class="tools" style="justify-content:space-between;align-items:center;margin-bottom:10px"><h2 style="margin:0">Danh mục hàng hóa (<span id="pcnt"></span>)</h2><div class="tools" style="gap:8px;margin:0"><button class="pri" id="addtog" data-toggleadd>${addOpen?'Đóng':'+ Thêm sản phẩm'}</button><button class="pri" id="xlbtn" data-xlmenu aria-haspopup="true">Excel</button></div></div>
-   <div class="fb"><input id="psr" placeholder="Tìm mã, barcode, tên, thương hiệu, quy cách (gõ không dấu cũng được)" value="${esc(pSearch)}"><select id="fc"><option value="">Mọi danh mục</option>${catOpts(fc)}</select><select id="pst">${[['','Mọi trạng thái'],['in','Còn hàng'],['low','Sắp hết'],['out','Hết hàng'],['neg','Tồn âm'],['off','Ngừng bán']].map(([v,l])=>`<option value="${v}" ${v===pSt?'selected':''}>${l}</option>`).join('')}</select></div>
-   <div class="fb" id="aflt"></div><div id="plist"></div></div>`;
-  $('#psr').oninput=ev=>{pSearch=ev.target.value;PG.pl=1;drawPL()};$('#fc').onchange=ev=>{fc=ev.target.value;af={};PG.pl=1;drawAF();drawPL()};$('#pst').onchange=ev=>{pSt=ev.target.value;PG.pl=1;drawPL()};
-  $('#nc').onkeydown=ev=>{if(ev.key==='Enter')addCat()};
-  const src=e||cs;
-  if(src){const v={pn:src.name,pc:e?e.code||'':'',pbc:e?e.barcode||'':'',pg:src.cat,pb:src.brand,pq:src.spec,pu:src.unit,pk:src.cost||'',pp:src.price,pw:src.wprice||'',ps:e?e.stock:'',pm:src.min||''}; /* bản sao: bỏ mã SKU, barcode và tồn kho */
-    for(const k in v)$('#'+k).value=v[k]}
-  uRows=src?(src.units||[]).map(u=>({...u})):[];sRows=src?(src.subs||[]).map(u=>u.dir==='small'?{...u}:{...u,dir:'big',v:u.per}):[];stMode='b';$('#pg').onchange=()=>drawAttrs();$('#pu').oninput=drawUnits;$('#pp').oninput=$('#pw').oninput=refPrices;drawAttrs(src?src.attrs||{}:{});drawUnits();drawAF();drawPL();
-  if(cs){$('#pc').focus()}
+   <table><tr><th>Thuộc tính</th><th>Áp dụng cho</th><th>Giá trị gợi ý</th><th class="n">Sản phẩm đang dùng</th><th></th></tr>${db.attrs.map(a=>`<tr><td>${esc(a.name)}</td><td>${a.cat?esc(a.cat):'Tất cả danh mục'}</td><td>${esc(a.values.join(', '))}</td><td class="n">${db.products.filter(p=>(p.attrs||{})[a.id]).length}</td><td class="n"><button class="ghost" data-aval="${a.id}">Giá trị</button><button class="ghost" data-aren="${a.id}">Đổi tên</button><button class="ghost danger" data-adel="${a.id}">Xóa</button></td></tr>`).join('')||'<tr><td colspan="5" class="empty">Chưa có thuộc tính.</td></tr>'}</table><small>Thuộc tính áp dụng cho cả danh mục con. Khi lọc theo một danh mục, bảng sản phẩm hiện thêm ô lọc theo từng thuộc tính.</small></div></div>
+  <div class="card"><div class="tools" style="justify-content:space-between;align-items:center;margin-bottom:10px"><h2 style="margin:0">Hàng hóa (<span id="pcnt"></span>)</h2></div>
+   <div class="pbar"><button class="pri" data-toggleadd>+ Thêm mới</button><button class="ghost" id="xlbtn" data-xlmenu aria-haspopup="true">Excel</button><button class="ghost ${pMg?'on':''}" id="mgbtn" data-pmgtog>Danh mục</button></div>
+   <div class="psb"><input id="psr" type="search" placeholder="Tìm tên, mã, barcode, thương hiệu…" value="${esc(pSearch)}"><select id="psort" aria-label="Sắp xếp">${[['az','A → Z'],['low','Tồn thấp nhất'],['hi','Giá cao nhất'],['new','Mới thêm']].map(([v,l])=>`<option value="${v}" ${v===pSort?'selected':''}>${l}</option>`).join('')}</select></div>
+   <div id="pchips"></div><div class="fb" id="aflt"></div><div id="plist"></div></div>`;
+  $('#psr').oninput=ev=>{pSearch=ev.target.value;pLim=30;drawPL()};$('#psort').onchange=ev=>{pSort=ev.target.value;pLim=30;drawPL()};
+  const nc=$('#nc');if(nc)nc.onkeydown=ev=>{if(ev.key==='Enter')addCat()};
+  pChips();drawAF();drawPL();
 }
 function drawPL(){
-  const k=nz(pSearch),L=db.products.filter(p=>inCat(p,fc)&&attrOK(p)&&(!k||nz(ptext(p)).includes(k))&&stOK(p,pSt)),g=pager('pl',L.length);
-  $('#plist').innerHTML=`<table class="ptab"><tr><th>Sản phẩm</th><th>Danh mục</th><th>ĐVT</th><th class="n">Giá vốn</th><th class="n">Giá lẻ</th><th class="n">Giá thợ</th><th class="n">Tồn</th><th></th></tr>
-  ${L.slice(g.from,g.from+50).map(p=>`<tr><td>${esc(p.name)}${p.status==='off'?' <span class="tag">Ngừng bán</span>':''}<br><small>${esc([p.code,p.barcode,pdesc(p)].filter(Boolean).join(', '))}</small></td><td>${esc(p.cat||'—')}</td><td>${esc(p.unit)}</td><td class="n">${money(p.cost)}</td><td class="n">${money(p.price)}${uPriceTxt(p)}</td><td class="n">${p.wprice?money(p.wprice):'—'}</td><td class="n ${p.stock<=(p.min||5)?'low':''}">${stk2(p)}</td><td class="n pact"><button class="ghost" data-edit="${p.id}">Sửa</button><button class="ghost" data-clone="${p.id}">Sao chép</button><button class="ghost pmb" data-pmore="${p.id}" title="Thêm" aria-label="Thêm">⋯</button></td></tr>`).join('')||'<tr><td colspan="8" class="empty">Không có sản phẩm phù hợp. Điền thông tin ở trên rồi bấm Thêm, hoặc nhập từ file CSV.</td></tr>'}</table>${g.html}`;
+  const k=nz(pSearch),L=db.products.filter(p=>inCat(p,fc)&&attrOK(p)&&(!k||nz(ptext(p)).includes(k))&&stOK(p,pSt));
+  const cmp={az:(a,b)=>a.name.localeCompare(b.name,'vi'),low:(a,b)=>a.stock-b.stock||a.name.localeCompare(b.name,'vi'),hi:(a,b)=>b.price-a.price||a.name.localeCompare(b.name,'vi'),new:(a,b)=>(b.created||0)-(a.created||0)}[pSort]||0;
+  L.sort(cmp);
+  const sh=L.slice(0,pLim);
+  $('#plist').innerHTML=`<div class="pgrid">${sh.map(p=>{
+    const lo=p.stock<=(p.min||5),off=p.status==='off',sub=[p.code,p.brand].filter(Boolean).join(' · ');
+    return `<div class="ic pc ${off?'void':''}"><div class="ivr2"><div class="ivl2"><b class="pnm">${esc(p.name)}</b>${sub?`<span class="im">${esc(sub)}</span>`:''}</div><div class="ppr"><b class="itot">${money(p.price)}</b><span class="im">/ ${esc(p.unit)}</span></div></div>
+     <div class="im">${esc([p.cat,pdesc(p)].filter(Boolean).join(' · ')||'Chưa phân loại')}${p.wprice?` · Thợ ${money(p.wprice)}`:''}</div>
+     <div class="ivr2"><div class="pst ${lo?'low':''}">${p.stock===0?'Hết hàng':'Tồn '+esc(rd(p.stock)+' '+p.unit)}${p.stock>0&&lo?' · sắp hết':''}${off?' <span class="tag">Ngừng bán</span>':''}</div><div class="iva"><button class="ghost" data-edit="${p.id}">Sửa</button><button class="ghost pmb" data-pmore="${p.id}" title="Thêm" aria-label="Thêm">⋯</button></div></div></div>`}).join('')||'<div class="empty" style="grid-column:1/-1">Không có sản phẩm phù hợp.</div>'}</div>${L.length>sh.length?`<div class="ivm"><button class="ghost" data-pshow>Xem thêm ${Math.min(30,L.length-sh.length)} sản phẩm (còn ${L.length-sh.length})</button></div>`:''}`;
   $('#pcnt').textContent=L.length;
+}
+/* ----- Form thêm / sửa sản phẩm (cửa sổ) ----- */
+function closeProdForm(){
+  const m=document.querySelector('.dbm.pfm');if(m)m.remove();
+  if(pKd){document.removeEventListener('keydown',pKd,true);pKd=null}
+  editing=null;cloneFrom=null;pAddOpen=false;
+}
+function openProdForm(){
+  const e=editing?prod(editing):null,cs=!e&&cloneFrom?prod(cloneFrom):null;
+  const old=document.querySelector('.dbm');if(old)old.remove();if(pKd)document.removeEventListener('keydown',pKd,true);
+  pAddOpen=true;
+  const el=document.createElement('div');el.className='dbm pfm';
+  const ttl=e?'Sửa sản phẩm':cs?'Sao chép sản phẩm':'Thêm sản phẩm';
+  el.innerHTML=`<div class="dbs" role="dialog" aria-modal="true" aria-label="${ttl}" style="max-width:600px">
+   <div class="dbh"><div><div class="dbt1">${ttl}</div>${cs?`<small>Từ: ${esc(cs.name)}</small>`:''}</div><button type="button" class="ghost pcl" data-pclose aria-label="Đóng">✕</button></div>
+   <div class="dbb"><div class="pfg">
+    <label class="f2">Tên sản phẩm <b style="color:var(--red)">*</b><input id="pn" autocomplete="off"></label>
+    <label>Danh mục<select id="pg">${catOpts('')}</select></label>
+    <label>Đơn vị tính<input id="pu" list="units" placeholder="m², viên, thùng…" autocomplete="off"></label>
+    <label>Giá vốn (đ)<input id="pk" inputmode="numeric" placeholder="0" autocomplete="off"></label>
+    <label>Giá bán lẻ (đ) <b style="color:var(--red)">*</b><input id="pp" inputmode="numeric" placeholder="0" autocomplete="off"></label>
+    <label class="f2">Giá thợ / sỉ (đ) <small>(không bắt buộc)</small><input id="pw" inputmode="numeric" placeholder="0" autocomplete="off"></label>
+    <div id="pstock" class="f2"></div><input id="ps" type="hidden">
+   </div>
+   <details class="pdt"><summary>Thông tin thêm <small>SKU, barcode, thương hiệu, kích thước…</small></summary><div class="pfg">
+    <label>Mã hàng (SKU)<input id="pc" autocomplete="off"></label><label>Barcode<input id="pbc" autocomplete="off"></label>
+    <label>Thương hiệu<input id="pb" placeholder="Viglacera, Dulux…" autocomplete="off"></label><label>Quy cách<input id="pq" placeholder="60x60 cm, bóng kiếng…" autocomplete="off"></label>
+    <div id="pattrs" class="pfg f2" style="padding:0"></div></div></details>
+   <details class="pdt"><summary>Quy đổi đơn vị <small>thùng, hộp, viên…</small></summary><div id="punits"></div></details>
+   <details class="pdt"><summary>Cảnh báo sắp hết <small id="pmsum"></small></summary><div class="qhl" style="margin-top:8px"><small>Báo "sắp hết" khi tồn kho thấp hơn hoặc bằng mức này.</small><button type="button" class="qh" data-qh>?</button></div><small class="qhh" hidden>Để trống thì dùng mức mặc định là 5 (tính theo đơn vị cơ sở). Sản phẩm sắp hết hiện màu đỏ và có trong bộ lọc "Sắp hết".</small><label style="margin-top:8px">Mức cảnh báo (tồn ≤)<input id="pm" type="number" min="0" step="any" placeholder="5"></label></details>
+   <datalist id="units">${UNITS.map(u=>`<option>${u}</option>`).join('')}</datalist></div>
+   <div class="dbf">${cs?'<button type="button" class="ghost" data-saveprodnext>Lưu và sao chép tiếp</button>':'<button type="button" class="ghost" data-pclose>Hủy</button>'}<button type="button" class="pri" data-saveprod>${e?'Lưu thay đổi':cs?'Thêm bản sao':'Lưu sản phẩm'}</button></div></div>`;
+  document.body.appendChild(el);
+  pKd=ev=>{if(ev.key==='Escape')closeProdForm()};document.addEventListener('keydown',pKd,true);
+  const src=e||cs;
+  if(src){const v={pn:src.name,pc:e?e.code||'':'',pbc:e?e.barcode||'':'',pg:src.cat,pb:src.brand,pq:src.spec,pu:src.unit,pk:src.cost?fmtN(src.cost):'',pp:src.price?fmtN(src.price):(src.price===0?'0':''),pw:src.wprice?fmtN(src.wprice):'',ps:e?e.stock:'',pm:src.min||''}; /* bản sao: bỏ mã SKU, barcode và tồn kho */
+    for(const k in v)$('#'+k).value=v[k]}
+  if(src&&(src.code||src.barcode||src.brand||src.spec||Object.keys(src.attrs||{}).length)){const d=el.querySelectorAll('.pdt');d[0].open=true}
+  if(src&&((src.units||[]).length||(src.subs||[]).length))el.querySelectorAll('.pdt')[1].open=true;
+  if(src&&src.min)el.querySelectorAll('.pdt')[2].open=true;
+  ['pk','pp','pw'].forEach(id=>{const i=$('#'+id);
+    i.oninput=()=>{const d=i.value.replace(/\D/g,''),n=+d||0,pos=i.value.length-i.selectionStart;i.value=d?fmtN(n):'';const np=Math.max(0,i.value.length-pos);try{i.setSelectionRange(np,np)}catch(x){}if(id!=='pk')refPrices()};
+    i.onfocus=()=>setTimeout(()=>{try{i.select()}catch(x){}},0)});
+  const pm=()=>{const v=+$('#pm').value;$('#pmsum').textContent=v?'≤ '+v:''};$('#pm').oninput=pm;pm();
+  uRows=src?(src.units||[]).map(u=>({...u})):[];sRows=src?(src.subs||[]).map(u=>u.dir==='small'?{...u}:{...u,dir:'big',v:u.per}):[];stMode='b';
+  $('#pg').onchange=()=>drawAttrs();$('#pu').oninput=drawUnits;drawAttrs(src?src.attrs||{}:{});drawUnits();
+  setTimeout(()=>{$('#pn').focus({preventScroll:true})},60);
 }
 function pMenu(btn,id){
   const old=$('#pmenu'),same=old&&old.dataset.id===id;if(old)old.remove();if(same)return;
   const p=prod(id);if(!p)return;
   const m=document.createElement('div');m.id='pmenu';m.dataset.id=id;
-  m.innerHTML=`<button data-pstat="${id}">${p.status==='off'?'Bán lại':'Ngừng bán'}</button><button class="dg" data-delprod="${id}">Xóa</button>`;
+  m.innerHTML=`<button data-clone="${id}">Sao chép</button><button data-pstat="${id}">${p.status==='off'?'Bán lại':'Ngừng bán'}</button><button class="dg" data-delprod="${id}">Xóa</button>`;
   document.body.appendChild(m);
   const r=btn.getBoundingClientRect(),w=m.offsetWidth,h=m.offsetHeight;
   m.style.left=Math.max(8,Math.min(innerWidth-w-8,r.right-w))+'px';
@@ -989,10 +1061,10 @@ function xlMenu(btn){
   m.style.left=Math.max(8,Math.min(innerWidth-w-8,r.right-w))+'px';
   m.style.top=(r.bottom+6+h>innerHeight?Math.max(8,r.top-h-6):r.bottom+6)+'px';
 }
-document.addEventListener('click',e=>{const m=$('#pmenu');if(m&&!e.target.closest('[data-pmore],[data-xlmenu],[data-ppmenu],[data-ivmenu],[data-cmenu],[data-smenu],[data-spmenu],[data-immenu]')&&!(m.contains(e.target)&&!e.target.closest('button')))m.remove()});
+document.addEventListener('click',e=>{const m=$('#pmenu');if(m&&!e.target.closest('[data-pmore],[data-xlmenu],[data-ppmenu],[data-ivmenu],[data-cmenu],[data-smenu],[data-spmenu],[data-immenu],[data-wmenu]')&&!(m.contains(e.target)&&!e.target.closest('button')))m.remove()});
 addEventListener('scroll',()=>{const m=$('#pmenu');if(m)m.remove()},true);
 function saveProd(next){
-  const name=$('#pn').value.trim(),n=id=>+$('#'+id).value||0,code=$('#pc').value.trim();
+  const name=$('#pn').value.trim(),n=id=>(id==='pk'||id==='pp'||id==='pw')?pnum(id):+$('#'+id).value||0,code=$('#pc').value.trim();
   if(!name)return alert('Nhập tên sản phẩm.');
   if($('#pp').value==='')return alert('Nhập giá bán lẻ.');
   if(code&&db.products.some(x=>x.id!==editing&&(x.code||'').toLowerCase()===code.toLowerCase()))return alert('Mã hàng (SKU) này đã tồn tại.');
@@ -1002,7 +1074,7 @@ function saveProd(next){
   cloneFrom=null;
   if(e){Object.assign(e,d);const df=rd(st-e.stock);if(df){e.stock=rd(st);mv(e,'Điều chỉnh',df,'Sửa tồn trong thẻ sản phẩm')}}
   else{const x=Object.assign({id:uid(),status:'on',stock:0,created:Date.now()},d);db.products.push(x);if(next===true)cloneFrom=x.id;if(st){x.stock=rd(st);mv(x,'Tồn đầu kỳ',x.stock,'Khi tạo sản phẩm')}}
-  editing=null;if(!cloneFrom)pAddOpen=false;save();products();toast(e?'Đã lưu thay đổi sản phẩm':'Đã thêm sản phẩm '+name);
+  const nx=cloneFrom;editing=null;save();closeProdForm();products();toast(e?'Đã lưu thay đổi sản phẩm':'Đã thêm sản phẩm '+name);if(nx){cloneFrom=nx;openProdForm()}
 }
 function addCat(name){
   const v=(name||($('#nc')?$('#nc').value:'')).replace(/>/g,'').trim(),par=name?'':($('#npar')?$('#npar').value:'');
@@ -1034,7 +1106,7 @@ const readAttrs=()=>{const o={};document.querySelectorAll('.at').forEach(el=>{co
 const learnAttrs=o=>Object.entries(o).forEach(([id,v])=>{const a=db.attrs.find(x=>x.id===id);if(a&&!a.values.includes(v))a.values.push(v)});
 function drawAttrs(cur){
   const old=cur||readAttrs(),A=attrsFor($('#pg').value);
-  $('#pattrs').innerHTML=A.length?A.map(a=>`<label>${esc(a.name)}<input class="at" data-a="${a.id}" list="dl_${a.id}" value="${esc(old[a.id]||'')}" autocomplete="off"><datalist id="dl_${a.id}">${a.values.map(v=>`<option value="${esc(v)}">`).join('')}</datalist></label>`).join(''):'<small style="grid-column:span 4">Danh mục này chưa có thuộc tính. Thêm ở mục "Thuộc tính hàng hóa" bên dưới.</small>';
+  $('#pattrs').innerHTML=A.length?A.map(a=>`<label>${esc(a.name)}<input class="at" data-a="${a.id}" list="dl_${a.id}" value="${esc(old[a.id]||'')}" autocomplete="off"><datalist id="dl_${a.id}">${a.values.map(v=>`<option value="${esc(v)}">`).join('')}</datalist></label>`).join(''):'<small class="f2">Danh mục này chưa có thuộc tính (kích thước, màu…). Thêm ở Danh mục → Thuộc tính hàng hóa.</small>';
 }
 function drawAF(){
   const A=fc?attrsFor(fc):[];if(!fc)af={};
@@ -1060,7 +1132,7 @@ const unitRate=(k,i)=>{if(k==='u'){let r=1;for(let x=0;x<=i;x++)r=rd6(r*(+uRows[
 const priceRow=(k,i,u)=>`<div class="row upl" style="justify-content:flex-start;gap:8px;margin:4px 0 0 18px;flex-wrap:wrap"><small>Giá bán 1 <b class="pln" data-k="${k}" data-i="${i}">${esc(u.name||'?')}</b></small><input class="upr" data-k="${k}" data-i="${i}" data-w="0" type="number" min="0" step="any" style="width:125px"><small>đ · Giá thợ/sỉ</small><input class="upr" data-k="${k}" data-i="${i}" data-w="1" type="number" min="0" step="any" style="width:125px"><small>đ</small></div>`;
 function nmUpd(){document.querySelectorAll('.pln').forEach(b=>{const r=(b.dataset.k==='u'?uRows:sRows)[+b.dataset.i];b.textContent=(r&&r.name)||'?'})}
 function refPrices(){
-  const pp=+$('#pp').value||0,pw=+$('#pw').value||0;
+  const pp=pnum('pp'),pw=pnum('pw');
   document.querySelectorAll('.upr').forEach(el=>{
     if(document.activeElement===el)return;
     const k=el.dataset.k,i=+el.dataset.i,w=el.dataset.w==='1',r=(k==='u'?uRows:sRows)[i];if(!r)return;
@@ -1086,12 +1158,12 @@ function drawStock(){
 }
 function drawUnits(){
   const base=($('#pu').value||'').trim()||'đơn vị cơ sở',pv=()=>unitsTxt({unit:base,units:uRows.filter(u=>String(u.name).trim()&&u.per>0),subs:sRows.filter(u=>String(u.name).trim()&&u.per>0)});
-  $('#punits').innerHTML=`<small>Quy đổi đơn vị (không bắt buộc). Tồn kho và giá luôn tính theo đơn vị cơ sở <b>${esc(base)}</b>; các đơn vị lớn hơn dùng để nhập hàng, bán hàng và hiển thị. Mỗi đơn vị có ô giá riêng: ô màu xám là giá tự tính theo đơn vị cơ sở, bạn gõ giá khác để đặt giá riêng, xóa trống để tự tính lại.</small>${uRows.map((u,i)=>`<div class="row" style="justify-content:flex-start;gap:8px;margin-top:6px"><span>1</span><input class="un" data-i="${i}" placeholder="hộp, thùng, pallet…" value="${esc(u.name)}" style="width:150px"><span>=</span><input class="up" data-i="${i}" type="number" min="0" step="any" value="${u.per||''}" style="width:110px"><b class="ub" data-i="${i}">${esc(i?uRows[i-1].name||'?':base)}</b><button class="x" data-urm="${i}" title="Xóa cấp này">×</button></div>${priceRow('u',i,u)}`).join('')}${uRows.length<3?'<div style="margin-top:6px"><button class="ghost" data-uadd>+ Thêm cấp quy đổi</button></div>':''}<small id="upv">${esc(pv())}</small>
-  <div style="margin-top:14px;padding-top:10px;border-top:1px dashed var(--line)"><small><b>Đơn vị nhỏ hơn đơn vị cơ sở</b> (để chiết lẻ, bán lẻ). Ví dụ: gạch tính theo m² thì nhập 1 viên = 0,36 m²; keo tính theo bao thì nhập 1 bao = 25 kí (chọn kiểu nhập ở ô bên cạnh). Tồn kho vẫn tính theo <b>${esc(base)}</b>; khi bán hoặc nhập theo đơn vị nhỏ, phần mềm tự quy đổi và trừ tồn theo tỷ lệ.</small>${sRows.map((u,i)=>`<div class="row" style="justify-content:flex-start;gap:8px;margin-top:6px;flex-wrap:wrap"><select class="sd" data-i="${i}" style="width:auto"><option value="small" ${u.dir==='small'?'selected':''}>1 đơn vị nhỏ = … ${esc(base)}</option><option value="big" ${u.dir!=='small'?'selected':''}>1 ${esc(base)} = … đơn vị nhỏ</option></select>${u.dir==='small'?`<span>1</span><input class="sn" data-i="${i}" placeholder="viên, kí, lạng…" value="${esc(u.name)}" style="width:140px"><span>=</span><input class="sp" data-i="${i}" type="number" min="0" step="any" value="${u.v||''}" placeholder="0.36" style="width:100px"><b>${esc(base)}</b>`:`<span>1 <b>${esc(base)}</b> =</span><input class="sp" data-i="${i}" type="number" min="0" step="any" value="${u.v||''}" placeholder="25" style="width:100px"><input class="sn" data-i="${i}" placeholder="kí, lạng, mét…" value="${esc(u.name)}" style="width:140px">`}<button class="x" data-srm="${i}" title="Xóa đơn vị này">×</button></div>${priceRow('s',i,u)}`).join('')}${sRows.length<2?'<div style="margin-top:6px"><button class="ghost" data-sadd>+ Thêm đơn vị nhỏ hơn</button></div>':''}</div>`;
+  $('#punits').innerHTML=`<div class="qhl"><small>Không bắt buộc. Tồn kho và giá tính theo <b>${esc(base)}</b>.</small><button type="button" class="qh" data-qh>?</button></div><small class="qhh" hidden>Quy đổi đơn vị (không bắt buộc). Tồn kho và giá luôn tính theo đơn vị cơ sở <b>${esc(base)}</b>; các đơn vị lớn hơn dùng để nhập hàng, bán hàng và hiển thị. Mỗi đơn vị có ô giá riêng: ô màu xám là giá tự tính theo đơn vị cơ sở, bạn gõ giá khác để đặt giá riêng, xóa trống để tự tính lại.</small>${uRows.map((u,i)=>`<div class="row" style="justify-content:flex-start;gap:8px;margin-top:6px"><span>1</span><input class="un" data-i="${i}" placeholder="hộp, thùng, pallet…" value="${esc(u.name)}" style="width:150px"><span>=</span><input class="up" data-i="${i}" type="number" min="0" step="any" value="${u.per||''}" style="width:110px"><b class="ub" data-i="${i}">${esc(i?uRows[i-1].name||'?':base)}</b><button class="x" data-urm="${i}" title="Xóa cấp này">×</button></div>${priceRow('u',i,u)}`).join('')}${uRows.length<3?'<div style="margin-top:6px"><button class="ghost" data-uadd>+ Thêm cấp quy đổi</button></div>':''}<small id="upv">${esc(pv())}</small>
+  <div style="margin-top:14px;padding-top:10px;border-top:1px dashed var(--line)"><div class="qhl"><small><b>Đơn vị nhỏ hơn</b> đơn vị cơ sở (để bán lẻ, chiết lẻ).</small><button type="button" class="qh" data-qh>?</button></div><small class="qhh" hidden>Ví dụ: gạch tính theo m² thì nhập 1 viên = 0,36 m²; keo tính theo bao thì nhập 1 bao = 25 kí (chọn kiểu nhập ở ô bên cạnh). Tồn kho vẫn tính theo <b>${esc(base)}</b>; khi bán hoặc nhập theo đơn vị nhỏ, phần mềm tự quy đổi và trừ tồn theo tỷ lệ.</small>${sRows.map((u,i)=>`<div class="row" style="justify-content:flex-start;gap:8px;margin-top:6px;flex-wrap:wrap"><select class="sd" data-i="${i}" style="width:auto"><option value="small" ${u.dir==='small'?'selected':''}>1 đơn vị nhỏ = … ${esc(base)}</option><option value="big" ${u.dir!=='small'?'selected':''}>1 ${esc(base)} = … đơn vị nhỏ</option></select>${u.dir==='small'?`<span>1</span><input class="sn" data-i="${i}" placeholder="viên, kí, lạng…" value="${esc(u.name)}" style="width:140px"><span>=</span><input class="sp" data-i="${i}" type="number" min="0" step="any" value="${u.v||''}" placeholder="0.36" style="width:100px"><b>${esc(base)}</b>`:`<span>1 <b>${esc(base)}</b> =</span><input class="sp" data-i="${i}" type="number" min="0" step="any" value="${u.v||''}" placeholder="25" style="width:100px"><input class="sn" data-i="${i}" placeholder="kí, lạng, mét…" value="${esc(u.name)}" style="width:140px">`}<button class="x" data-srm="${i}" title="Xóa đơn vị này">×</button></div>${priceRow('s',i,u)}`).join('')}${sRows.length<2?'<div style="margin-top:6px"><button class="ghost" data-sadd>+ Thêm đơn vị nhỏ hơn</button></div>':''}</div>`;
   document.querySelectorAll('.sp,.sn').forEach(el=>el.oninput=()=>{const r=sRows[+el.dataset.i];if(el.classList.contains('sn'))r.name=el.value;else{r.v=+el.value||0;r.per=r.v>0?(r.dir==='small'?1/r.v:r.v):0}$('#upv').textContent=pv();nmUpd();refPrices();drawStock()});
   document.querySelectorAll('.sd').forEach(el=>el.onchange=()=>{const r=sRows[+el.dataset.i];r.dir=el.value;r.per=r.v>0?(r.dir==='small'?1/r.v:r.v):0;drawUnits()});
   document.querySelectorAll('.un,.up').forEach(el=>el.oninput=()=>{const r=uRows[+el.dataset.i];if(el.classList.contains('un'))r.name=el.value;else r.per=+el.value||0;document.querySelectorAll('.ub').forEach(b=>{const i=+b.dataset.i;b.textContent=i?uRows[i-1].name||'?':base});$('#upv').textContent=pv();nmUpd();refPrices();drawStock()});
-  document.querySelectorAll('.upr').forEach(el=>{el.oninput=()=>{const r=(el.dataset.k==='u'?uRows:sRows)[+el.dataset.i],w=el.dataset.w==='1',v=+el.value||0,auto=Math.round((w?+$('#pw').value||0:+$('#pp').value||0)*unitRate(el.dataset.k,+el.dataset.i));if(v>0&&v!==auto)r[w?'wprice':'price']=v;else delete r[w?'wprice':'price'];el.classList.toggle('auto',!(v>0&&v!==auto))};el.onchange=refPrices});
+  document.querySelectorAll('.upr').forEach(el=>{el.oninput=()=>{const r=(el.dataset.k==='u'?uRows:sRows)[+el.dataset.i],w=el.dataset.w==='1',v=+el.value||0,auto=Math.round((w?pnum('pw'):pnum('pp'))*unitRate(el.dataset.k,+el.dataset.i));if(v>0&&v!==auto)r[w?'wprice':'price']=v;else delete r[w?'wprice':'price'];el.classList.toggle('auto',!(v>0&&v!==auto))};el.onchange=refPrices});
   refPrices();drawStock();
 }
 const CSVH=['SKU','Barcode','Tên sản phẩm','Danh mục (cha > con)','Thương hiệu','Quy cách','ĐVT cơ sở','Số ĐVT mỗi hộp/thùng (cũ)','Giá vốn','Giá bán lẻ','Giá thợ','Tồn tối thiểu','Tồn đầu kỳ','Thuộc tính (Tên=Giá trị; …)','Quy đổi (hộp=1.44; thùng=6)'];
@@ -1676,69 +1748,119 @@ function stockView(){
   $('#main').innerHTML=`<div class="otabs">${[['ov','Tồn kho'],['xf','Chuyển kho'],['kk','Kiểm kê'],['lg','Sổ kho / Thẻ kho'],['wh','Kho và vị trí']].map(([k,l])=>`<div class="ot ${kt===k?'on':''}"><button data-kt="${k}">${l}</button></div>`).join('')}</div><div id="kbody"></div>`;
   ({ov:kOv,xf:xfView,kk:kKK,lg:kLG,wh:whView})[kt]();
 }
+let kkLim=30,kLim=30,skf=false,lgQ='',lgLim=20,xfLim=10;
+const UL={'':'Đơn vị cơ sở','big':'Đơn vị lớn nhất','small':'Đơn vị nhỏ nhất'};
+function kSync(){
+  document.querySelectorAll('[data-ksf]').forEach(b=>b.classList.toggle('on',sf===b.dataset.ksf));
+  const e=$('#sf');if(e)e.value=sf;
+  const n=(sc2?1:0)+(sw?1:0)+(sf&&sf!=='low'&&sf!=='out'?1:0),f=$('#kfbtn');if(f)f.textContent='Bộ lọc'+(n?' · '+n:'');
+}
 function kOv(){
-  const A=db.products.filter(p=>p.status!=='off'),n=f=>A.filter(f).length;
-  $('#kbody').innerHTML=`<div class="stats">${[['SKU đang bán',A.length],['Có tồn',n(p=>p.stock>0)],['Hết hàng',n(p=>p.stock===0)],['Sắp hết',n(p=>p.stock>0&&p.stock<=(p.min||5))],['Tồn âm',n(p=>p.stock<0)]].map(([t,v])=>`<div class="stat">${t}<b>${v}</b></div>`).join('')}<div class="stat">Giá trị tồn kho<b>${money(db.products.reduce((s,p)=>s+p.stock*(p.cost||0),0))}</b><small>theo giá vốn bình quân</small></div></div>
-  <div class="card"><h2>Điều chỉnh nhập / xuất kho</h2><div class="form" style="grid-template-columns:2fr 1fr 1fr 2fr auto"><label>Sản phẩm (gõ mã hoặc tên rồi chọn)<input id="mp" list="plist2" autocomplete="off"></label><label>Số lượng (âm = xuất)<input id="mq" type="number" step="any"></label><label>Lý do<select id="mr">${ADJ.map(r=>`<option>${r}</option>`).join('')}</select></label><label>Ghi chú<input id="mn"></label><button class="pri" data-move>Ghi sổ kho</button></div><datalist id="plist2">${db.products.map(p=>`<option value="${esc(plab(p))}">`).join('')}</datalist><small>Nhập hàng từ nhà cung cấp hãy dùng thẻ Nhập hàng để có phiếu nhập và giá vốn. Kiểm đếm hãy dùng thẻ Kiểm kê.</small></div>
-  <div class="card"><h2>Tồn kho hiện tại (<span id="scnt"></span>)</h2><div class="fb"><input id="sq" placeholder="Tìm mã, barcode, tên (gõ không dấu cũng được)" value="${esc(sq)}"><select id="fc2"><option value="">Mọi danh mục</option>${catOpts(sc2)}</select><select id="sf">${[['','Mọi trạng thái'],['in','Còn hàng'],['low','Sắp hết'],['out','Hết hàng'],['neg','Tồn âm'],['off','Ngừng bán']].map(([v,l])=>`<option value="${v}" ${v===sf?'selected':''}>${l}</option>`).join('')}</select><select id="fu" title="Đơn vị hiển thị tồn kho">${[['','Tồn theo đơn vị cơ sở'],['big','Tồn theo đơn vị lớn nhất'],['small','Tồn theo đơn vị nhỏ nhất']].map(([v,l])=>`<option value="${v}" ${v===suMode?'selected':''}>${l}</option>`).join('')}</select><select id="fw"><option value="">Mọi kho</option>${db.whs.map(w=>`<option value="${w.id}" ${w.id===sw?'selected':''}>${esc(w.name)}</option>`).join('')}</select></div><div id="slist"></div></div>`;
-  $('#sq').oninput=e=>{sq=e.target.value;PG.sl=1;drawSL()};$('#fc2').onchange=e=>{sc2=e.target.value;PG.sl=1;drawSL()};$('#sf').onchange=e=>{sf=e.target.value;PG.sl=1;drawSL()};$('#fw').onchange=e=>{sw=e.target.value;PG.sl=1;drawSL()};$('#fu').onchange=e=>{suMode=e.target.value;suMap={};LS('bh_su','{}');LS('bh_sumode',suMode);drawSL()};
-  drawSL();
+  const A=db.products.filter(p=>p.status!=='off'),nLow=A.filter(p=>stOK(p,'low')).length,nOut=A.filter(p=>stOK(p,'out')).length,val=db.products.reduce((t,p)=>t+p.stock*(p.cost||0),0);
+  $('#kbody').innerHTML=`<div class="kst"><div class="ks"><small>Giá trị tồn kho</small><b>${money(val)}</b></div><button class="ks" data-ksf="low"><small>Sắp hết</small><b class="${nLow?'low':''}">${nLow}</b></button><button class="ks" data-ksf="out"><small>Hết hàng</small><b class="${nOut?'low':''}">${nOut}</b></button></div>
+  <div class="card"><div class="tools" style="justify-content:space-between;align-items:center;margin-bottom:10px"><h2 style="margin:0">Tồn kho (<span id="scnt"></span>)</h2><select id="fu" title="Đơn vị hiển thị tồn kho (áp dụng cho cả trang)" style="width:auto">${Object.entries(UL).map(([v,l])=>`<option value="${v}" ${v===suMode?'selected':''}>${l}</option>`).join('')}</select></div>
+   <div class="pbar"><button class="pri" data-kadj="">Điều chỉnh kho</button><button class="ghost ${skf?'on':''}" id="kfbtn" data-kflt>Bộ lọc</button></div>
+   <input id="sq" type="search" placeholder="Tìm mã, barcode, tên hàng…" value="${esc(sq)}" style="margin-bottom:8px">
+   <div class="pfg kfp" id="kflt" ${skf?'':'hidden'}><label>Danh mục<select id="fc2"><option value="">Mọi danh mục</option>${catOpts(sc2)}</select></label><label>Trạng thái<select id="sf">${[['','Mọi trạng thái'],['in','Còn hàng'],['low','Sắp hết'],['out','Hết hàng'],['neg','Tồn âm'],['off','Ngừng bán']].map(([v,l])=>`<option value="${v}" ${v===sf?'selected':''}>${l}</option>`).join('')}</select></label>${multiWh()?`<label class="f2">Kho<select id="fw"><option value="">Mọi kho</option>${db.whs.map(w=>`<option value="${w.id}" ${w.id===sw?'selected':''}>${esc(w.name)}</option>`).join('')}</select></label>`:''}</div>
+   <div id="slist"></div></div>`;
+  $('#sq').oninput=e=>{sq=e.target.value;kLim=30;drawSL()};$('#fc2').onchange=e=>{sc2=e.target.value;kLim=30;kSync();drawSL()};$('#sf').onchange=e=>{sf=e.target.value;kLim=30;kSync();drawSL()};const fw=$('#fw');if(fw)fw.onchange=e=>{sw=e.target.value;kLim=30;kSync();drawSL()};$('#fu').onchange=e=>{suMode=e.target.value;suMap={};LS('bh_su','{}');LS('bh_sumode',suMode);drawSL()};
+  kSync();drawSL();
 }
 function drawSL(){
-  const k=nz(sq),L=db.products.filter(p=>inCat(p,sc2)&&(!k||nz(ptext(p)).includes(k))&&(!sw||whQty(p,sw)!==0)&&stOK(p,sf)),g=pager('sl',L.length);
+  const k=nz(sq),L=db.products.filter(p=>inCat(p,sc2)&&(!k||nz(ptext(p)).includes(k))&&(!sw||whQty(p,sw)!==0)&&stOK(p,sf)).sort((a,b)=>a.name.localeCompare(b.name,'vi')),sh=L.slice(0,kLim);
   const suI=p=>{const ur=urates(p);if(suMap[p.id]!=null&&ur[suMap[p.id]])return suMap[p.id];if(suMode==='big'||suMode==='small'){let b=0;ur.forEach((u,x)=>{if(suMode==='big'?u.rate>ur[b].rate:u.rate<ur[b].rate)b=x});return b}return 0};
-  $('#slist').innerHTML=`<table><tr><th>Mã</th><th>Sản phẩm</th><th class="n">Tồn</th><th class="n">Giá vốn</th><th class="n">Giá trị tồn</th><th></th></tr>${L.slice(g.from,g.from+50).map(p=>`<tr><td>${esc(p.code||'')}</td><td>${esc(p.name)}${p.status==='off'?' <span class="tag">Ngừng bán</span>':''}<br><small>${esc(pdesc(p))}</small></td><td class="n ${p.stock<=(p.min||5)?'low':''}">${(()=>{const ur=urates(p),x=suI(p),q=sw?whQty(p,sw):p.stock;return '<b>'+rdp(q/ur[x].rate)+'</b> '+(ur.length>1?`<select class="su" data-id="${p.id}">${ur.map((u,j)=>`<option value="${j}" ${j===x?'selected':''}>${esc(u.name)}</option>`).join('')}</select>`:esc(p.unit))})()}${(p.box||(p.subs||[]).length)?'<br><small>'+hint(p,sw?whQty(p,sw):p.stock).slice(2)+'</small>':''}${multiWh()&&p.stock?'<br><small>'+esc(allocTxt(p))+'</small>':''}</td><td class="n">${money(p.cost||0)}</td><td class="n">${money((sw?whQty(p,sw):p.stock)*(p.cost||0))}</td><td class="n"><button class="ghost" data-card="${p.id}">Thẻ kho</button></td></tr>`).join('')||'<tr><td colspan="6" class="empty">Không có sản phẩm phù hợp.</td></tr>'}</table>${g.html}`;
+  $('#slist').innerHTML=`<div class="pgrid">${sh.map(p=>{const ur=urates(p),x=suI(p),q=sw?whQty(p,sw):p.stock,lo=p.stock<=(p.min||5),sub=[p.code,pdesc(p)].filter(Boolean).join(' · '),extra=[(p.box||(p.subs||[]).length)?hint(p,q).slice(2):'',multiWh()&&p.stock?allocTxt(p):''].filter(Boolean).join(' · ');
+   return `<div class="ic pc ${p.status==='off'?'void':''}"><div class="ivr2"><div class="ivl2"><b class="pnm">${esc(p.name)}${p.status==='off'?' <span class="tag">Ngừng bán</span>':''}</b>${sub?`<span class="im">${esc(sub)}</span>`:''}</div><div class="ppr"><b class="itot ${lo?'low':''}" style="${lo?'':'color:var(--ink)'}">${rdp(q/ur[x].rate)}</b>${ur.length>1?`<select class="su" data-id="${p.id}">${ur.map((u,j)=>`<option value="${j}" ${j===x?'selected':''}>${esc(u.name)}</option>`).join('')}</select>`:`<span class="im">${esc(p.unit)}</span>`}</div></div>
+   ${extra?`<div class="im">${esc(extra)}</div>`:''}<div class="im">Vốn ${money(p.cost||0)} · Giá trị tồn <b style="color:var(--ink)">${money(q*(p.cost||0))}</b></div><div class="iac"><button class="ghost" data-kadj="${p.id}">Điều chỉnh</button><button class="ghost" data-card="${p.id}">Thẻ kho</button></div></div>`}).join('')||'<div class="empty" style="grid-column:1/-1">Không có sản phẩm phù hợp.</div>'}</div>${L.length>sh.length?`<div class="ivm"><button class="ghost" data-kshow>Xem thêm ${Math.min(30,L.length-sh.length)} sản phẩm (còn ${L.length-sh.length})</button></div>`:''}`;
   $('#scnt').textContent=L.length;
   document.querySelectorAll('.su').forEach(el=>el.onchange=()=>{suMap[el.dataset.id]=+el.value;LS('bh_su',JSON.stringify(suMap));drawSL()});
 }
-function doMove(){
-  const p=findP($('#mp').value),n=+$('#mq').value;
-  if(!p||!n)return alert('Chọn sản phẩm từ danh sách gợi ý và nhập số lượng khác 0.');
-  if(p.stock+n<0&&!db.allowNeg)return alert('Số lượng xuất vượt quá tồn kho. Bạn có thể bật "cho phép tồn âm" ở thẻ Cài đặt.');
-  p.stock=rd(p.stock+n);mv(p,$('#mr').value,n,$('#mn').value.trim());save();kOv();toast('Đã ghi sổ kho');
+function kAdj(pid){
+  const old=document.querySelector('.dbm');if(old)old.remove();
+  const el=document.createElement('div');el.className='dbm kam';let dir=1;const p0=pid?prod(pid):null;
+  el.innerHTML=`<div class="dbs" role="dialog" aria-modal="true" aria-label="Điều chỉnh kho" style="max-width:460px"><div class="dbh"><div class="dbt1">Điều chỉnh kho</div><button type="button" class="ghost pcl" data-x aria-label="Đóng">✕</button></div>
+   <div class="dbb"><div class="seg"><button type="button" class="on" data-d="1">Nhập thêm</button><button type="button" data-d="-1">Xuất bớt</button></div>
+   <label>Sản phẩm <small>(gõ mã hoặc tên rồi chọn)</small><input id="mp" list="plist3" autocomplete="off"></label><datalist id="plist3">${db.products.map(p=>`<option value="${esc(plab(p))}">`).join('')}</datalist>
+   <div class="pfg" style="margin-top:10px"><label>Số lượng <small id="mu"></small><input id="mq" type="number" step="any" min="0" inputmode="decimal" placeholder="0"></label><label>Lý do<select id="mr"></select></label></div>
+   <label>Ghi chú <small>(tùy chọn)</small><input id="mn" autocomplete="off"></label><small id="mi" style="display:block;margin-top:8px;color:var(--mute)">Nhập hàng từ nhà cung cấp hãy dùng thẻ Nhập hàng để có phiếu và giá vốn. Kiểm đếm hãy dùng thẻ Kiểm kê.</small><div class="low" id="merr" style="min-height:20px;margin-top:6px"></div></div>
+   <div class="dbf"><button type="button" class="ghost" data-x>Hủy</button><button type="button" class="pri" id="mok">Ghi nhập kho</button></div></div>`;
+  document.body.appendChild(el);
+  const q=x=>el.querySelector(x),close=()=>{el.remove();document.removeEventListener('keydown',kd,true)},kd=ev=>{if(ev.key==='Escape')close()};
+  document.addEventListener('keydown',kd,true);
+  const sync=()=>{
+    q('#mr').innerHTML=(dir>0?['Điều chỉnh','Khác']:ADJ).map(r=>`<option>${r}</option>`).join('');
+    const b=q('#mok');b.textContent=dir>0?'Ghi nhập kho':'Ghi xuất kho';b.style.background=dir>0?'':'#d70015';
+    el.querySelectorAll('.seg button').forEach(x=>x.classList.toggle('on',+x.dataset.d===dir));
+    const p=findP(q('#mp').value);q('#mu').textContent=p?'('+p.unit+')':'';q('#merr').textContent='';
+    if(p)q('#mi').textContent='Tồn hiện tại: '+rd(p.stock)+' '+p.unit+(hasU(p)?' (≈ '+fmtU(p,p.stock)+')':'');
+  };
+  if(p0)q('#mp').value=plab(p0);
+  sync();
+  el.onclick=ev=>{const b=ev.target.closest('button');if(ev.target===el||(b&&b.dataset.x!==undefined))return close();if(b&&b.dataset.d){dir=+b.dataset.d;sync()}};
+  q('#mp').oninput=q('#mp').onchange=sync;
+  const go=()=>{
+    const p=findP(q('#mp').value),n=+q('#mq').value,err=m=>{q('#merr').textContent=m};
+    if(!p)return err('Chọn sản phẩm từ danh sách gợi ý.');
+    if(!(n>0))return err('Nhập số lượng lớn hơn 0.');
+    const d=dir*n;
+    if(p.stock+d<0&&!db.allowNeg)return err('Số lượng xuất vượt quá tồn kho ('+rd(p.stock)+' '+p.unit+'). Có thể bật "cho phép tồn âm" ở Cài đặt.');
+    p.stock=rd(p.stock+d);mv(p,q('#mr').value,d,q('#mn').value.trim());save();close();if(tab==='stock'&&kt==='ov')kOv();toast((dir>0?'Đã nhập thêm ':'Đã xuất bớt ')+rd(n)+' '+p.unit+' · '+p.name);
+  };
+  q('#mok').onclick=go;
+  el.addEventListener('keydown',ev=>{if(ev.key==='Enter'&&ev.target.tagName==='INPUT'){ev.preventDefault();go()}});
+  setTimeout(()=>q(p0?'#mq':'#mp').focus(),60);
 }
 function kLG(){
   const p=card&&prod(card),sums={};db.moves.forEach(m=>{sums[m.pid]=(sums[m.pid]||0)+m.qty});
   const bad=db.products.filter(x=>rd(sums[x.id]||0)!==rd(x.stock)).length;
-  $('#kbody').innerHTML=`<div class="card"><h2>${p?'Thẻ kho: '+esc(p.name):'Sổ kho (toàn bộ biến động)'}</h2>
-  <div class="fb"><input id="lgp" list="plist2" autocomplete="off" placeholder="Chọn sản phẩm để xem thẻ kho (gõ mã hoặc tên)" value="${p?esc(plab(p)):''}"><select id="lgt"><option value="">Mọi loại biến động</option>${[...new Set(db.moves.map(m=>m.type))].map(t=>`<option ${t===lgType?'selected':''}>${esc(t)}</option>`).join('')}</select><select id="lgw"><option value="">Mọi kho</option>${db.whs.map(w=>`<option value="${w.id}" ${w.id===lgW?'selected':''}>${esc(w.name)}</option>`).join('')}</select>${p?'<button class="ghost" data-cardx>Xem toàn bộ sổ kho</button>':''}</div>
-  <datalist id="plist2">${db.products.map(x=>`<option value="${esc(plab(x))}">`).join('')}</datalist>
+  $('#kbody').innerHTML=`<div class="card"><h2>${p?'Thẻ kho: '+esc(p.name):'Sổ kho'}</h2>
+  <div class="psb"><input id="lgq" type="search" placeholder="Tìm sản phẩm, mã, chứng từ, ghi chú…" value="${esc(lgQ)}"><select id="lgt" style="width:140px"><option value="">Mọi loại</option>${[...new Set(db.moves.map(m=>m.type))].map(t=>`<option ${t===lgType?'selected':''}>${esc(t)}</option>`).join('')}</select></div>
+  ${multiWh()||p?`<div class="pbar">${multiWh()?`<select id="lgw" style="flex:1;min-width:0"><option value="">Mọi kho</option>${db.whs.map(w=>`<option value="${w.id}" ${w.id===lgW?'selected':''}>${esc(w.name)}</option>`).join('')}</select>`:''}${p?'<button class="ghost" data-cardx>Xem toàn bộ sổ kho</button>':''}</div>`:''}
   ${p?`<p>Tồn hiện tại <b>${esc(stk(p))}</b> (${esc(allocTxt(p)||'chưa xếp kho')}). Tổng cộng sổ kho <b>${rd(sums[p.id]||0)}</b> ${rd(sums[p.id]||0)===rd(p.stock)?'<span class="tag" style="background:#e3f5ee;color:#0b5a54">Khớp</span>':'<span class="tag">Lệch, cần kiểm tra</span>'}</p>`:`<p><small>${bad?bad+' sản phẩm có tồn hiện tại khác tổng sổ kho (thường là dữ liệu cũ chỉnh tay trước khi có sổ kho đầy đủ).':'Tồn hiện tại của mọi sản phẩm khớp với tổng cộng sổ kho.'}</small></p>`}
   <div id="lglist"></div></div>`;
-  $('#lgp').onchange=e=>{const x=findP(e.target.value);card=x?x.id:null;PG.lg=1;kLG()};$('#lgt').onchange=e=>{lgType=e.target.value;PG.lg=1;drawLG()};$('#lgw').onchange=e=>{lgW=e.target.value;PG.lg=1;drawLG()};
+  $('#lgq').oninput=e=>{lgQ=e.target.value;lgLim=20;drawLG()};$('#lgt').onchange=e=>{lgType=e.target.value;lgLim=20;drawLG()};const w=$('#lgw');if(w)w.onchange=e=>{lgW=e.target.value;lgLim=20;drawLG()};
   drawLG();
 }
 function drawLG(){
-  const L=db.moves.filter(m=>(!card||m.pid===card)&&(!lgType||m.type===lgType)&&(!lgW||(m.alloc||[]).some(a=>a[0].startsWith(lgW+'|')))),g=pager('lg',L.length);
-  $('#lglist').innerHTML=`<table><tr><th>Thời gian</th><th>Mã</th><th>Sản phẩm</th><th>Loại</th><th class="n">SL</th><th class="n">Trước</th><th class="n">Sau</th><th>Kho / vị trí</th><th>Chứng từ / ghi chú</th><th>Người</th></tr>${L.slice(g.from,g.from+50).map(m=>`<tr><td>${fmtT(m.time)}</td><td>${esc((prod(m.pid)||{}).code||'')}</td><td>${esc(m.name)}</td><td>${esc(m.type)}</td><td class="n">${m.qty>0?'+':''}${rd(m.qty)}</td><td class="n">${m.before==null?'':rd(m.before)}</td><td class="n">${rd(m.after)}</td><td>${esc(locTxt(m))}</td><td>${esc([m.ref,m.note].filter(Boolean).join(' - '))}</td><td>${esc(m.user||'')}</td></tr>`).join('')||'<tr><td colspan="10" class="empty">Chưa có biến động kho.</td></tr>'}</table>${g.html}`;
+  const k=nz(lgQ),L=db.moves.filter(m=>(!card||m.pid===card)&&(!lgType||m.type===lgType)&&(!lgW||(m.alloc||[]).some(a=>a[0].startsWith(lgW+'|')))&&(!k||nz([m.name,(prod(m.pid)||{}).code,m.type,m.ref,m.note,m.user].join(' ')).includes(k))),sh=L.slice(0,lgLim);
+  $('#lglist').innerHTML=`<div class="pgrid">${sh.map(m=>{const lt=multiWh()?locTxt(m):'',extra=[m.ref,m.note].filter(Boolean).join(' · ');
+   return `<div class="ic pc"><div class="ivr2"><div class="ivl2"><b class="pnm">${esc(m.name)}</b><span class="im">${fmtT(m.time)}</span></div><b class="itot" style="color:${m.qty>0?'#248a3d':'var(--red)'}">${m.qty>0?'+':''}${rd(m.qty)}</b></div>
+   <div class="itg"><span class="tag">${esc(m.type)}</span></div><div class="im">${m.before==null?'':'Trước '+rd(m.before)+' → '}Sau <b style="color:var(--ink)">${rd(m.after)}</b>${m.user?' · '+esc(m.user):''}</div>${lt?`<div class="im">${esc(lt)}</div>`:''}${extra?`<div class="im">${esc(extra)}</div>`:''}</div>`}).join('')||'<div class="empty" style="grid-column:1/-1">Không có biến động phù hợp.</div>'}</div>${L.length>sh.length?`<div class="ivm"><button class="ghost" data-lgshow>Xem thêm ${Math.min(20,L.length-sh.length)} dòng (còn ${L.length-sh.length})</button></div>`:''}`;
 }
 function kKK(){
   const s=db.counts.find(x=>x.id===kkOpen);
   if(s)return s.status==='done'?kkDone(s):kkEdit(s);
-  $('#kbody').innerHTML=`<div class="card"><h2>Tạo phiên kiểm kê mới</h2><div class="form" style="grid-template-columns:1fr 1fr 1fr auto"><label>Phạm vi<select id="ksc"><option value="all">Toàn bộ hàng đang bán</option><option value="cat">Theo danh mục</option><option value="stock">Chỉ hàng đang có tồn</option><option value="low">Hàng sắp hết hoặc hết</option><option value="wh">Theo kho</option><option value="loc">Theo vị trí / kệ</option></select></label><label>Danh mục (khi chọn theo danh mục)<select id="kct">${catOpts('')}</select></label><label>Ghi chú / khu vực<input id="kno" placeholder="Kệ A01, kho ngoài trời…"></label><button class="pri" data-kknew>Tạo phiên</button></div><div class="form" style="grid-template-columns:1fr 1fr;margin-top:8px"><label>Kho (khi chọn theo kho)<select id="kwh">${whOpts(db.saleWh)}</select></label><label>Vị trí / kệ (khi chọn theo vị trí)<select id="klc">${db.locs.map(l=>`<option value="${l.id}">${esc(whName(l.wid))} / ${esc(l.name)}</option>`).join('')||'<option value="">Chưa có vị trí</option>'}</select></label></div><label class="chk"><input type="checkbox" id="kbl">Kiểm kê mù: ẩn tồn hệ thống cho tới khi nhập số đếm</label></div>
-  <div class="card"><h2>Lịch sử kiểm kê (${db.counts.length})</h2><table><tr><th>Số phiếu</th><th>Thời gian</th><th>Phạm vi</th><th>Kết quả</th><th></th></tr>${db.counts.map(c=>{const I=c.items||[],m=I.filter(i=>i.diff<0).length,o=I.filter(i=>i.diff>0).length;return `<tr><td>${c.no}</td><td>${fmtT(c.time)}</td><td>${esc(c.scope)}${c.note?'<br><small>'+esc(c.note)+'</small>':''}</td><td>${c.status==='done'?`${I.length} đã kiểm, thiếu ${m}, thừa ${o}`:'<span class="tag" style="background:#fff3d6;color:#8a5a00">Đang kiểm</span>'}</td><td class="n"><button class="ghost" data-kkopen="${c.id}">${c.status==='done'?'Xem':'Tiếp tục'}</button></td></tr>`}).join('')||'<tr><td colspan="5" class="empty">Chưa có phiên kiểm kê nào.</td></tr>'}</table></div>`;
+  $('#kbody').innerHTML=`<div class="card"><h2>Tạo phiên kiểm kê mới</h2><div class="pfg"><label class="f2">Phạm vi<select id="ksc"><option value="all">Toàn bộ hàng đang bán</option><option value="cat">Theo danh mục</option><option value="stock">Chỉ hàng đang có tồn</option><option value="low">Hàng sắp hết hoặc hết</option><option value="wh">Theo kho</option><option value="loc">Theo vị trí / kệ</option></select></label>
+   <label class="f2" id="kctw" hidden>Danh mục<select id="kct">${catOpts('')}</select></label><label class="f2" id="kwhw" hidden>Kho<select id="kwh">${whOpts(db.saleWh)}</select></label><label class="f2" id="klcw" hidden>Vị trí / kệ<select id="klc">${db.locs.map(l=>`<option value="${l.id}">${esc(whName(l.wid))} / ${esc(l.name)}</option>`).join('')||'<option value="">Chưa có vị trí</option>'}</select></label>
+   <label class="f2">Ghi chú / khu vực <small>(tùy chọn)</small><input id="kno" placeholder="Kệ A01, kho ngoài trời…"></label></div>
+   <label class="chk"><input type="checkbox" id="kbl">Kiểm kê mù: ẩn tồn hệ thống cho tới khi nhập số đếm</label><div class="act"><button class="pri" data-kknew>Tạo phiên kiểm kê</button></div></div>
+  <div class="card"><h2>Lịch sử kiểm kê (${db.counts.length})</h2><div class="pgrid">${db.counts.map(c=>{const I=c.items||[],m=I.filter(i=>i.diff<0).length,o=I.filter(i=>i.diff>0).length;return `<div class="ic pc"><div class="ivr2"><div class="ivl2"><b class="ino">${c.no}</b><span class="im">${fmtT(c.time)}</span></div>${c.status==='done'?'<span class="tag ok">Hoàn tất</span>':'<span class="tag" style="background:#fff3d6;color:#8a5a00">Đang kiểm</span>'}</div><div class="im">${esc(c.scope)}${c.note?' · '+esc(c.note):''}</div>${c.status==='done'?`<div class="im">${I.length} đã kiểm · thiếu <b>${m}</b> · thừa <b>${o}</b></div>`:''}<div class="iac"><button class="ghost" data-kkopen="${c.id}">${c.status==='done'?'Xem':'Tiếp tục'}</button></div></div>`}).join('')||'<div class="empty" style="grid-column:1/-1">Chưa có phiên kiểm kê nào.</div>'}</div></div>`;
+  const sc=$('#ksc'),vis=()=>{$('#kctw').hidden=sc.value!=='cat';$('#kwhw').hidden=sc.value!=='wh';$('#klcw').hidden=sc.value!=='loc'};sc.onchange=vis;vis();
 }
 function kkNew(){
   const sc=$('#ksc').value,c=$('#kct').value,w=$('#kwh').value,loc=db.locs.find(l=>l.id===$('#klc').value),L=db.products.filter(p=>p.status!=='off'&&(sc==='cat'?inCat(p,c):sc==='low'?p.stock<=(p.min||5):sc==='stock'?p.stock!==0:sc==='wh'?whQty(p,w)!==0:sc==='loc'?!!loc&&balOf(p,loc.wid,loc.id)!==0:true));
   if(sc==='loc'&&!loc)return alert('Chưa có vị trí nào. Hãy thêm vị trí ở mục Kho và vị trí.');
   if(!L.length)return alert('Không có sản phẩm nào trong phạm vi này.');
   const s={id:uid(),no:'KK'+String(db.seqKK++).padStart(4,'0'),time:Date.now(),wid:sc==='wh'?w:sc==='loc'?loc.wid:'',lid:sc==='loc'?loc.id:'',scope:sc==='cat'?'Danh mục: '+c:sc==='wh'?'Kho: '+whName(w):sc==='loc'?'Vị trí: '+whName(loc.wid)+' / '+loc.name:{all:'Toàn kho',stock:'Hàng có tồn',low:'Hàng sắp hết'}[sc],note:$('#kno').value.trim(),blind:$('#kbl').checked,status:'draft',user:stfName(),lines:L.map(p=>({id:p.id,counted:null,reason:''}))};
-  db.counts.unshift(s);kkOpen=s.id;kkQ='';kkF='';PG.kk=1;save();kKK();
+  db.counts.unshift(s);kkOpen=s.id;kkQ='';kkF='';kkLim=30;save();kKK();
 }
 function kkEdit(s){
   $('#kbody').innerHTML=`<div class="card"><h2>${s.no}: ${esc(s.scope)} ${s.blind?'<span class="tag" style="background:#e8f4f2;color:#0b5a54">Kiểm kê mù</span>':''}</h2><p><small>${fmtT(s.time)}${s.note?', '+esc(s.note):''}. Đã kiểm <b id="kkp"></b> / ${s.lines.length}. Chỉ những mặt hàng đã nhập số thực tế mới được điều chỉnh khi hoàn tất.</small></p>
   <div class="fb"><input id="kkq" placeholder="Tìm mã, barcode, tên" value="${esc(kkQ)}"><select id="kkf"><option value="">Tất cả dòng</option><option value="todo" ${kkF==='todo'?'selected':''}>Chưa kiểm</option><option value="diff" ${kkF==='diff'?'selected':''}>Có chênh lệch</option></select></div>
   <div id="kklist"></div>
   <div class="act" style="justify-content:space-between"><div class="tools"><button class="ghost" data-kkback>Quay lại</button><button class="ghost danger" data-kkdel>Xóa phiên</button></div><div class="tools"><button class="ghost" data-kksave>Lưu tạm</button><button class="pri" data-kkfin>Hoàn tất kiểm kê</button></div></div></div>`;
-  $('#kkq').oninput=e=>{kkQ=e.target.value;PG.kk=1;drawKK()};$('#kkf').onchange=e=>{kkF=e.target.value;PG.kk=1;drawKK()};
+  $('#kkq').oninput=e=>{kkQ=e.target.value;kkLim=30;drawKK()};$('#kkf').onchange=e=>{kkF=e.target.value;kkLim=30;drawKK()};
   drawKK();
 }
 const kkProg=s=>{const e=$('#kkp');if(e)e.textContent=s.lines.filter(l=>l.counted!==null).length};
 const sgn=d=>(d>0?'+':'')+d;
 function drawKK(){
   const s=db.counts.find(x=>x.id===kkOpen);if(!s||s.status!=='draft'||!$('#kklist'))return;
-  const k=nz(kkQ),R=s.lines.filter(l=>{const p=prod(l.id);if(!p)return false;if(k&&!nz(ptext(p)).includes(k))return false;return kkF==='todo'?l.counted===null:kkF==='diff'?l.counted!==null&&rd(l.counted-sysQ(p,s))!==0:true}),g=pager('kk',R.length);
-  $('#kklist').innerHTML=`<table><tr><th>Mã</th><th>Sản phẩm</th><th class="n">Hệ thống</th><th class="n">Thực tế</th><th class="n">Chênh lệch</th><th>Lý do</th></tr>${R.slice(g.from,g.from+50).map(l=>{const p=prod(l.id),sy=sysQ(p,s),has=l.counted!==null,d=has?rd(l.counted-sy):0;return `<tr><td>${esc(p.code||'')}</td><td>${esc(p.name)}<br><small>${esc(pdesc(p))}</small></td><td class="n" id="ks_${l.id}">${s.blind&&!has?'—':rd(sy)+' '+esc(p.unit)}</td><td class="n"><input class="pi kc" type="number" step="any" min="0" data-k="${l.id}" value="${has?l.counted:''}"></td><td class="n ${d?'low':''}" id="kd_${l.id}">${has?sgn(d):''}</td><td><select class="kr" data-k="${l.id}"><option value="">Sai số kiểm kê</option>${KKR.map(r=>`<option ${l.reason===r?'selected':''}>${r}</option>`).join('')}</select></td></tr>`}).join('')||'<tr><td colspan="6" class="empty">Không có dòng phù hợp.</td></tr>'}</table>${g.html}`;
+  const k=nz(kkQ),R=s.lines.filter(l=>{const p=prod(l.id);if(!p)return false;if(k&&!nz(ptext(p)).includes(k))return false;return kkF==='todo'?l.counted===null:kkF==='diff'?l.counted!==null&&rd(l.counted-sysQ(p,s))!==0:true});
+  const sh=R.slice(0,kkLim);
+  $('#kklist').innerHTML=`<div class="pgrid">${sh.map(l=>{const p=prod(l.id),sy=sysQ(p,s),has=l.counted!==null,d=has?rd(l.counted-sy):0;return `<div class="ic pc"><div class="ivr2"><div class="ivl2"><b class="pnm">${esc(p.name)}</b><span class="im">${esc([p.code,pdesc(p)].filter(Boolean).join(' · '))}</span></div><div class="ppr"><span class="im">Hệ thống</span><b id="ks_${l.id}">${s.blind&&!has?'—':rd(sy)+' '+esc(p.unit)}</b></div></div>
+   <div class="kkr"><label>Thực tế<input class="pi kc" type="number" step="any" min="0" inputmode="decimal" data-k="${l.id}" value="${has?l.counted:''}"></label><div class="kdv"><span class="im">Chênh lệch</span><b class="${d?'low':''}" id="kd_${l.id}">${has?sgn(d):''}</b></div></div>
+   <select class="kr" data-k="${l.id}"><option value="">Sai số kiểm kê</option>${KKR.map(r=>`<option ${l.reason===r?'selected':''}>${r}</option>`).join('')}</select></div>`}).join('')||'<div class="empty" style="grid-column:1/-1">Không có dòng phù hợp.</div>'}</div>${R.length>sh.length?`<div class="ivm"><button class="ghost" data-kkshow>Xem thêm ${Math.min(30,R.length-sh.length)} dòng (còn ${R.length-sh.length})</button></div>`:''}`;
   document.querySelectorAll('.kc').forEach(el=>el.oninput=()=>{
     const l=s.lines.find(x=>x.id===el.dataset.k),p=prod(l.id);l.counted=el.value===''?null:Math.max(0,+el.value||0);
     $('#kd_'+l.id).textContent=l.counted===null?'':sgn(rd(l.counted-sysQ(p,s)));$('#ks_'+l.id).textContent=s.blind&&l.counted===null?'—':rd(sysQ(p,s))+' '+p.unit;kkProg(s);save();
@@ -1759,23 +1881,23 @@ function kkDone(s){
   const I=s.items,miss=I.filter(i=>i.diff<0),over=I.filter(i=>i.diff>0),val=a=>a.reduce((t,i)=>t+Math.abs(i.diff)*i.cost,0);
   $('#kbody').innerHTML=`<div class="card"><h2>${s.no}: ${esc(s.scope)}</h2><p><small>${fmtT(s.time)} đến ${fmtT(s.done)}${s.note?', '+esc(s.note):''}${s.user?', '+esc(s.user):''}${s.blind?', kiểm kê mù':''}</small></p>
   <div class="stats">${[['Đã kiểm',I.length],['Khớp',I.length-miss.length-over.length],['Thiếu',miss.length],['Thừa',over.length]].map(([t,v])=>`<div class="stat">${t}<b>${v}</b></div>`).join('')}<div class="stat">Giá trị thiếu<b>${money(val(miss))}</b></div><div class="stat">Giá trị thừa<b>${money(val(over))}</b></div></div>
-  <table><tr><th>Mã</th><th>Sản phẩm</th><th class="n">Hệ thống</th><th class="n">Thực tế</th><th class="n">Chênh lệch</th><th>Lý do</th></tr>${I.filter(i=>i.diff).map(i=>`<tr><td>${esc(i.code||'')}</td><td>${esc(i.name)}</td><td class="n">${i.sys} ${esc(i.unit)}</td><td class="n">${i.counted}</td><td class="n low">${sgn(i.diff)}</td><td>${esc(i.reason||'Sai số kiểm kê')}</td></tr>`).join('')||'<tr><td colspan="6" class="empty">Không có chênh lệch, mọi mặt hàng đã kiểm đều khớp.</td></tr>'}</table><div class="tools" style="margin-top:12px"><button class="ghost" data-kkback>Quay lại</button></div></div>`;
+  <div class="pgrid">${I.filter(i=>i.diff).map(i=>`<div class="ic pc"><div class="ivr2"><div class="ivl2"><b class="pnm">${esc(i.name)}</b><span class="im">${esc(i.code||'')} · ${esc(i.reason||'Sai số kiểm kê')}</span></div><b class="itot low">${sgn(i.diff)}</b></div><div class="im">Hệ thống ${i.sys} ${esc(i.unit)} → Thực tế ${i.counted}</div></div>`).join('')||'<div class="empty" style="grid-column:1/-1">Không có chênh lệch, mọi mặt hàng đã kiểm đều khớp.</div>'}</div><div class="tools" style="margin-top:12px"><button class="ghost" data-kkback>Quay lại</button></div></div>`;
 }
 
 /* ---------- Chuyển kho ---------- */
 function xfView(){
   xf.fw=xf.fw||db.saleWh;xf.tw=xf.tw||(db.whs.find(w=>w.id!==xf.fw)||db.whs[0]).id;
-  $('#kbody').innerHTML=`<div class="card"><h2>Phiếu chuyển kho mới</h2><div class="form" style="grid-template-columns:repeat(4,1fr)"><label>Từ kho<select id="xfw">${whOpts(xf.fw)}</select></label><label>Vị trí đi<select id="xfl">${locOpts(xf.fw,xf.fl)}</select></label><label>Đến kho<select id="xtw">${whOpts(xf.tw)}</select></label><label>Vị trí đến<select id="xtl">${locOpts(xf.tw,xf.tl)}</select></label></div>
-  <div class="form" style="grid-template-columns:2fr auto;margin-top:10px"><label>Thêm hàng (gõ mã hoặc tên rồi chọn)<input id="xpr" list="plist2" autocomplete="off"></label><button class="ghost" data-xadd>Thêm dòng</button></div>
+  $('#kbody').innerHTML=`<div class="card"><h2>Phiếu chuyển kho mới</h2><div class="pfg"><label>Từ kho<select id="xfw">${whOpts(xf.fw)}</select></label><label>Vị trí đi<select id="xfl">${locOpts(xf.fw,xf.fl)}</select></label><label>Đến kho<select id="xtw">${whOpts(xf.tw)}</select></label><label>Vị trí đến<select id="xtl">${locOpts(xf.tw,xf.tl)}</select></label></div>
+  <label>Thêm hàng <small>(gõ mã hoặc tên rồi chọn)</small><input id="xpr" list="plist2" autocomplete="off"></label>
   <datalist id="plist2">${db.products.map(x=>`<option value="${esc(plab(x))}">`).join('')}</datalist><div id="xlines"></div>
   <label style="margin-top:12px">Ghi chú<input id="xno" value="${esc(xf.note)}"></label><div class="act"><button class="ghost" data-xclear>Xóa phiếu</button><button class="pri" data-xsave>Lưu phiếu chuyển kho</button></div></div>
-  <div class="card"><h2>Lịch sử chuyển kho (${db.xfers.length})</h2><table><tr><th>Số phiếu</th><th>Thời gian</th><th>Từ</th><th>Đến</th><th>Hàng hóa</th></tr>${db.xfers.slice(0,50).map(x=>`<tr><td>${x.no}</td><td>${fmtT(x.time)}</td><td>${esc(whName(x.from.w))}${x.from.l?' / '+esc(locName(x.from.l)):''}</td><td>${esc(whName(x.to.w))}${x.to.l?' / '+esc(locName(x.to.l)):''}</td><td>${esc(x.items.map(i=>i.name+' ×'+i.qty).join(', '))}${x.note?'<br><small>'+esc(x.note)+'</small>':''}</td></tr>`).join('')||'<tr><td colspan="5" class="empty">Chưa có phiếu chuyển kho.</td></tr>'}</table></div>`;
+  <div class="card"><h2>Lịch sử chuyển kho (${db.xfers.length})</h2><div class="pgrid">${db.xfers.slice(0,xfLim).map(x=>`<div class="ic pc"><div class="ivr2"><div class="ivl2"><b class="ino">${x.no}</b><span class="im">${fmtT(x.time)}${x.user?' · '+esc(x.user):''}</span></div></div><div class="ics"><b>${esc(whName(x.from.w))}${x.from.l?' / '+esc(locName(x.from.l)):''}</b> → <b>${esc(whName(x.to.w))}${x.to.l?' / '+esc(locName(x.to.l)):''}</b></div><div class="iit">${x.items.map(i=>`<div><span>${esc(i.name)}</span><b>×${rd(i.qty)} ${esc(i.unit||'')}</b></div>`).join('')}</div>${x.note?`<div class="im">${esc(x.note)}</div>`:''}</div>`).join('')||'<div class="empty" style="grid-column:1/-1">Chưa có phiếu chuyển kho.</div>'}</div>${db.xfers.length>xfLim?`<div class="ivm"><button class="ghost" data-xfshow>Xem thêm (còn ${db.xfers.length-xfLim})</button></div>`:''}</div>`;
   [['xfw','fw','fl'],['xtw','tw','tl']].forEach(([id,w,l])=>{$('#'+id).onchange=e=>{xf[w]=e.target.value;xf[l]='';xfView()}});
   $('#xfl').onchange=e=>{xf.fl=e.target.value;drawX()};$('#xtl').onchange=e=>{xf.tl=e.target.value};$('#xno').oninput=e=>{xf.note=e.target.value};$('#xpr').onchange=addX;
   drawX();
 }
 function drawX(){
-  $('#xlines').innerHTML=xf.lines.length?`<table><tr><th>Mặt hàng</th><th class="n">Đang có tại vị trí đi</th><th class="n">Số lượng chuyển</th><th></th></tr>${xf.lines.map((l,k)=>{const p=prod(l.id);return `<tr><td>${esc(p.name)}<br><small>${esc(p.unit)}</small></td><td class="n">${rd(balOf(p,xf.fw,xf.fl))}</td><td class="n"><input class="pi xq" type="number" min="0" step="any" data-i="${k}" value="${l.qty}"></td><td><button class="x" data-xrm="${k}">×</button></td></tr>`}).join('')}</table>`:'<div class="emp" style="padding:24px">Chưa có dòng hàng. Gõ mã hoặc tên hàng ở ô trên rồi chọn.</div>';
+  $('#xlines').innerHTML=xf.lines.length?`<div class="xl">${xf.lines.map((l,k)=>{const p=prod(l.id);return `<div class="ic xr"><div class="ivr2"><div class="ivl2"><b class="pnm">${esc(p.name)}</b><span class="im">Đang có ${rd(balOf(p,xf.fw,xf.fl))} ${esc(p.unit)}</span></div><button class="x" data-xrm="${k}" aria-label="Xóa dòng">×</button></div><label>Số lượng chuyển (${esc(p.unit)})<input class="pi xq" type="number" min="0" step="any" inputmode="decimal" data-i="${k}" value="${l.qty}"></label></div>`}).join('')}</div>`:'<div class="emp" style="padding:24px">Chưa có dòng hàng. Gõ mã hoặc tên hàng ở ô trên rồi chọn.</div>';
   document.querySelectorAll('.xq').forEach(el=>el.oninput=()=>{xf.lines[+el.dataset.i].qty=Math.max(0,+el.value||0)});
 }
 function addX(){
@@ -1795,13 +1917,18 @@ function saveXf(){
 }
 /* ---------- Kho và vị trí ---------- */
 function whView(){
-  $('#kbody').innerHTML=`<div class="card"><h2>Kho hàng</h2><div class="form" style="grid-template-columns:2fr 2fr auto;margin-bottom:12px"><label>Tên kho mới<input id="wn" placeholder="Kho phụ, Kho ngoài trời…"></label><label>Ghi chú<input id="wno"></label><button class="pri" data-waddw>Thêm kho</button></div>
-  <table><tr><th>Kho</th><th>Ghi chú</th><th class="n">Số vị trí</th><th class="n">Số mặt hàng có tồn</th><th></th></tr>${db.whs.map(w=>`<tr><td>${esc(w.name)}${w.locked?' <span class="tag">Đã khóa</span>':''}${w.id===db.defWh?' <small>(nhập mặc định)</small>':''}${w.id===db.saleWh?' <small>(xuất bán)</small>':''}</td><td>${esc(w.note||'')}</td><td class="n">${db.locs.filter(l=>l.wid===w.id).length}</td><td class="n">${db.products.filter(p=>whQty(p,w.id)!==0).length}</td><td class="n"><button class="ghost" data-wren="${w.id}">Đổi tên</button><button class="ghost" data-wlock="${w.id}">${w.locked?'Mở khóa':'Khóa'}</button><button class="ghost danger" data-wdel="${w.id}">Xóa</button></td></tr>`).join('')}</table>
-  <div class="form" style="grid-template-columns:1fr 1fr;margin-top:14px"><label>Kho nhập hàng mặc định<select id="dwh">${whOpts(db.defWh)}</select></label><label>Kho xuất bán hàng<select id="swh">${whOpts(db.saleWh)}</select></label></div>
+  $('#kbody').innerHTML=`<div class="card"><h2>Kho hàng</h2><div class="pgrid" style="margin:0 0 12px">${db.whs.map(w=>`<div class="ic pc"><div class="ivr2"><div class="ivl2"><b class="pnm">${esc(w.name)}</b><span class="im">${esc(w.note||'')}</span></div><div class="iva"><button class="ghost" data-wren="${w.id}">Đổi tên</button><button class="ghost pmb" data-wmenu="w${w.id}" aria-label="Thêm">⋯</button></div></div><div class="itg">${w.locked?'<span class="tag">Đã khóa</span>':''}${w.id===db.defWh?'<span class="tag ok">Nhập mặc định</span>':''}${w.id===db.saleWh?'<span class="tag ok">Xuất bán</span>':''}</div><div class="im">${db.locs.filter(l=>l.wid===w.id).length} vị trí · ${db.products.filter(p=>whQty(p,w.id)!==0).length} mặt hàng có tồn</div></div>`).join('')}</div>
+  <div class="pfg"><label>Tên kho mới<input id="wn" placeholder="Kho phụ, Kho ngoài trời…"></label><label>Ghi chú<input id="wno"></label></div><div class="act" style="margin:0 0 14px"><button class="pri" data-waddw>Thêm kho</button></div>
+  <div class="pfg"><label>Kho nhập hàng mặc định<select id="dwh">${whOpts(db.defWh)}</select></label><label>Kho xuất bán hàng<select id="swh">${whOpts(db.saleWh)}</select></label></div>
   <small>Bán hàng trừ tồn từ kho xuất bán trước, thiếu thì lấy tiếp từ kho khác. Nhập hàng, trả hàng và điều chỉnh tăng mặc định vào kho nhập. Khi nhập hàng hoặc chuyển kho bạn có thể chọn kho và vị trí khác.</small></div>
-  <div class="card"><h2>Vị trí / kệ</h2><div class="form" style="grid-template-columns:1fr 1fr auto;margin-bottom:12px"><label>Thuộc kho<select id="lw">${whOpts(db.defWh)}</select></label><label>Tên vị trí / kệ<input id="ln" placeholder="A01, Kệ sơn 2…"></label><button class="pri" data-waddl>Thêm vị trí</button></div>
-  <table><tr><th>Vị trí</th><th>Kho</th><th class="n">Số mặt hàng có tồn</th><th></th></tr>${db.locs.map(l=>`<tr><td>${esc(l.name)}</td><td>${esc(whName(l.wid))}</td><td class="n">${db.products.filter(p=>balOf(p,l.wid,l.id)!==0).length}</td><td class="n"><button class="ghost" data-lren="${l.id}">Đổi tên</button><button class="ghost danger" data-ldel="${l.id}">Xóa</button></td></tr>`).join('')||'<tr><td colspan="4" class="empty">Chưa có vị trí nào. Thêm kệ hoặc khu vực để chia nhỏ kho, ví dụ A01, A02.</td></tr>'}</table></div>`;
-  $('#dwh').onchange=e=>{db.defWh=e.target.value;save()};$('#swh').onchange=e=>{db.saleWh=e.target.value;save()};
+  <div class="card"><h2>Vị trí / kệ</h2><div class="pgrid" style="margin:0 0 12px">${db.locs.map(l=>`<div class="ic pc"><div class="ivr2"><div class="ivl2"><b class="pnm">${esc(l.name)}</b><span class="im">${esc(whName(l.wid))} · ${db.products.filter(p=>balOf(p,l.wid,l.id)!==0).length} mặt hàng có tồn</span></div><div class="iva"><button class="ghost" data-lren="${l.id}">Đổi tên</button><button class="ghost pmb" data-wmenu="l${l.id}" aria-label="Thêm">⋯</button></div></div></div>`).join('')||'<div class="empty" style="grid-column:1/-1">Chưa có vị trí nào. Thêm kệ hoặc khu vực để chia nhỏ kho, ví dụ A01, A02.</div>'}</div>
+  <div class="pfg"><label>Thuộc kho<select id="lw">${whOpts(db.defWh)}</select></label><label>Tên vị trí / kệ<input id="ln" placeholder="A01, Kệ sơn 2…"></label></div><div class="act" style="margin:0"><button class="pri" data-waddl>Thêm vị trí</button></div></div>`;
+  $('#dwh').onchange=e=>{db.defWh=e.target.value;save();whView()};$('#swh').onchange=e=>{db.saleWh=e.target.value;save();whView()};
+}
+function whMenu(btn,k){
+  const id=k.slice(1);
+  if(k[0]==='w'){const w=db.whs.find(x=>x.id===id);if(w)popMenu(btn,k,`<button data-wlock="${id}">${w.locked?'Mở khóa kho':'Khóa kho'}</button><button class="dg" data-wdel="${id}">Xóa kho</button>`)}
+  else popMenu(btn,k,`<button class="dg" data-ldel="${id}">Xóa vị trí</button>`);
 }
 function addWh(){const n=$('#wn').value.trim();if(!n)return alert('Nhập tên kho.');if(db.whs.some(w=>w.name.toLowerCase()===n.toLowerCase()))return alert('Tên kho đã có.');db.whs.push({id:uid(),name:n,note:$('#wno').value.trim()});save();whView()}
 function renWh(id){const w=db.whs.find(x=>x.id===id),v=(prompt('Tên kho:',w.name)||'').trim();if(v){w.name=v;save();whView()}}
@@ -2683,13 +2810,17 @@ document.addEventListener('click',e=>{
   else if('clear' in d)clearOrder();
   else if('pay' in d)payS();
   else if('gopay' in d)$('#panel').scrollIntoView({behavior:'smooth',block:'start'});
-  else if('toggleadd' in d){pAddOpen=!pAddOpen;$('#padd').hidden=!pAddOpen;$('#addtog').textContent=pAddOpen?'Đóng':'+ Thêm sản phẩm';scrollTo(0,0);if(pAddOpen){const n=$('#pn');if(n)n.focus({preventScroll:true})}}
+  else if('toggleadd' in d){editing=null;cloneFrom=null;openProdForm()}
+  else if('pclose' in d)closeProdForm()
+  else if('pmgtog' in d){pMg=!pMg;$('#pmg').hidden=!pMg;b.classList.toggle('on',pMg)}
+  else if('pshow' in d){pLim+=30;drawPL()}
+  else if('pfc' in d){fc=d.pfc;af={};pLim=30;pChips();drawAF();drawPL()}
+  else if('pfs' in d){pSt=pSt===d.pfs?'':d.pfs;pLim=30;pChips();drawPL()}
+  else if('qh' in d){const h=b.parentElement.nextElementSibling;if(h)h.hidden=!h.hidden;b.classList.toggle('on',!h.hidden)}
   else if('saveprod' in d)saveProd();
-  else if(d.edit){editing=d.edit;cloneFrom=null;products();scrollTo(0,0)}
-  else if(d.clone){editing=null;cloneFrom=d.clone;products();scrollTo(0,0)}
-  else if('clonecancel' in d){cloneFrom=null;pAddOpen=false;products()}
+  else if(d.edit){editing=d.edit;cloneFrom=null;openProdForm()}
+  else if(d.clone){editing=null;cloneFrom=d.clone;openProdForm()}
   else if('saveprodnext' in d)saveProd(true)
-  else if('canceledit' in d){editing=null;pAddOpen=false;products()}
   else if(d.delprod)delProd(d.delprod);
   else if(d.pmore)pMenu(b,d.pmore);
   else if('xlmenu' in d)xlMenu(b);
@@ -2749,7 +2880,7 @@ document.addEventListener('click',e=>{
   else if(d.ldel)delLoc(d.ldel);
   else if(d.pg){const[k,n]=d.pg.split(':');PG[k]=+n;({pl:drawPL,sl:drawSL,lg:drawLG,kk:drawKK})[k]()}
   else if(d.kt){kt=d.kt;stockView()}
-  else if(d.card){card=d.card;kt='lg';PG.lg=1;stockView()}
+  else if(d.card){card=d.card;kt='lg';lgLim=20;stockView()}
   else if('cardx' in d){card=null;kLG()}
   else if(d.pstat){const x=prod(d.pstat);x.status=x.status==='off'?'on':'off';save();drawPL()}
   else if('csvtpl' in d)csvTpl();
@@ -2758,7 +2889,7 @@ document.addEventListener('click',e=>{
   else if('ipgo' in d)csvGo();
   else if('ipx' in d){ipv=null;products()}
   else if('kknew' in d)kkNew();
-  else if(d.kkopen){kkOpen=d.kkopen;kkQ='';kkF='';PG.kk=1;kKK()}
+  else if(d.kkopen){kkOpen=d.kkopen;kkQ='';kkF='';kkLim=30;kKK()}
   else if('kkback' in d){kkOpen=null;kKK()}
   else if('kksave' in d){save();toast('Đã lưu tạm phiên kiểm kê')}
   else if('kkfin' in d)kkFinish();
@@ -2781,7 +2912,14 @@ document.addEventListener('click',e=>{
   else if(d.sug)addCat(SUG[+d.sug]);
   else if(d.rencat)renCat(+d.rencat);
   else if(d.delcat)delCat(+d.delcat);
-  else if('move' in d)doMove();
+  else if('kadj' in d)kAdj(d.kadj);
+  else if('kflt' in d){skf=!skf;$('#kflt').hidden=!skf;b.classList.toggle('on',skf)}
+  else if('ksf' in d){sf=sf===d.ksf?'':d.ksf;kLim=30;kSync();drawSL()}
+  else if('kshow' in d){kLim+=30;drawSL()}
+  else if('lgshow' in d){lgLim+=20;drawLG()}
+  else if('kkshow' in d){kkLim+=30;drawKK()}
+  else if('xfshow' in d){xfLim+=10;xfView()}
+  else if(d.wmenu)whMenu(b,d.wmenu)
   else if(d.count)countStock(d.count);
   else if('addcust' in d)custForm();
   else if(d.editc)custForm(d.editc);
