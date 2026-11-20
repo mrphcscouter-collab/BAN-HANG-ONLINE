@@ -648,7 +648,7 @@ function load(){
   try{const d=JSON.parse(localStorage.getItem(K));if(d&&d.products)return d}catch(e){}
   return{shop:'Cửa hàng vật liệu xây dựng',seq:1,invoices:[],products:seed(),cats:DEFCATS.slice()};
 }
-const idbOpen=()=>new Promise((ok,no)=>{const r=indexedDB.open('ban_hang_db',1);r.onupgradeneeded=()=>r.result.createObjectStore('kv');r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)});
+const idbOpen=()=>new Promise((ok,no)=>{const r=indexedDB.open('ban_hang_db');r.onupgradeneeded=()=>{if(!r.result.objectStoreNames.contains('kv'))r.result.createObjectStore('kv')};r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)});
 const idbGet=k=>new Promise((ok,no)=>{const r=idb.transaction('kv').objectStore('kv').get(k);r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)});
 function save(){gDirty();
   if(!idb){try{localStorage.setItem(K,JSON.stringify(db))}catch(e){alert('Không lưu được dữ liệu. Hãy mở file bằng Chrome hoặc Edge.')}return}
@@ -660,7 +660,7 @@ function flush(){
 }
 addEventListener('pagehide',flush);addEventListener('visibilitychange',()=>{if(document.hidden)flush()});
 async function boot(){
-  try{idb=await idbOpen();db=(await idbGet('db'))||{}}catch(e){idb=null;db={}}
+  try{idb=await idbOpen();db=(await idbGet('db'))||{};await imgLoad()}catch(e){idb=null;db={}}
   if(!db.products)db=load(); /* lần đầu: lấy từ localStorage (bản cũ) hoặc dữ liệu mẫu */
   norm();orderSeq=0;orders=[newOrder()];cur=0;save();booting=false;go('sell');gInit();
   if(db.invoices.length&&(!db.lastBackup||Date.now()-db.lastBackup>7*864e5))setTimeout(()=>toast('Đã hơn 7 ngày chưa sao lưu. Vào Cài đặt để sao lưu dữ liệu.'),1200);
@@ -2481,8 +2481,8 @@ function resetAll(){
   const w=prompt('Xác nhận lần 2. Gõ chính xác cụm từ XOA HET (viết hoa, có dấu cách) rồi bấm OK để xóa vĩnh viễn:');
   if(w===null)return;
   if(w.trim()!=='XOA HET')return alert('Nội dung gõ không đúng nên chưa xóa gì. Dữ liệu vẫn được giữ nguyên.');
-  try{dl('sao-luu-truoc-khi-xoa-'+stamp()+'.json',JSON.stringify(db),'application/json')}catch(e){} /* tự tải bản sao lưu cuối cùng */
-  db=blankDb();norm();
+  try{dl('sao-luu-truoc-khi-xoa-'+stamp()+'.json',JSON.stringify(Object.assign({},db,{_img:IMG})),'application/json')}catch(e){} /* tự tải bản sao lưu cuối cùng */
+  db=blankDb();norm();try{idb.transaction('kv','readwrite').objectStore('kv').delete(IRG())}catch(e){}
   try{localStorage.removeItem(K);localStorage.removeItem(K+'_v1_backup')}catch(e){}
   const done=()=>location.reload();
   if(idb){const tx=idb.transaction('kv','readwrite');tx.objectStore('kv').put(db,'db');tx.oncomplete=done;tx.onerror=done}
@@ -2935,13 +2935,13 @@ document.addEventListener('click',e=>{
   else if(d.delc)delCust(d.delc);
   else if(d.paydebt)payDebt(d.paydebt);
   else if('csv' in d)csv();
-  else if('backup' in d){db.lastBackup=Date.now();save();dl(`sao-luu-ban-hang-${stamp()}.json`,JSON.stringify(db),'application/json')}
+  else if('backup' in d){db.lastBackup=Date.now();save();bkJson().then(j=>dl(`sao-luu-ban-hang-${stamp()}.json`,j,'application/json'))}
   else if('restore' in d)$('#file').click();
 });
 $('#file').onchange=e=>{
   const f=e.target.files[0];if(!f)return;const r=new FileReader();
   r.onload=()=>{try{const d=JSON.parse(r.result);if(!d.products||!d.invoices)throw 0;
-    if(confirm('Thay toàn bộ dữ liệu hiện tại bằng bản sao lưu này?')){db=d;norm();save();orderSeq=0;orders=[newOrder()];cur=0;go('report')}}
+    if(confirm('Thay toàn bộ dữ liệu hiện tại bằng bản sao lưu này?')){const im=d._img;delete d._img;db=d;norm();imgReplace(im);save();orderSeq=0;orders=[newOrder()];cur=0;go('report')}}
     catch(x){alert('File sao lưu không hợp lệ.')}};
   r.readAsText(f);e.target.value='';
 };
@@ -2953,6 +2953,289 @@ $('#fcsv').onchange=async e=>{
     else csvRead(td.decode(u));
   }catch(err){alert(err.message||'Không đọc được file.')}
 };
+/* ======= NÂNG CẤP v6: ảnh sản phẩm, quét mã, tạo mã vạch / QR, in tem ======= */
+/* ---- Bộ tạo QR (byte mode, mức sửa lỗi M, phiên bản 1-10) ---- */
+const QRG=(()=>{
+const ECC=[10,16,26,18,24,16,18,22,22,26],NB=[1,1,1,2,2,4,4,4,5,5];
+const mul=(x,y)=>{let z=0;for(let i=7;i>=0;i--){z=(z<<1)^((z>>>7)*0x11D);z^=((y>>>i)&1)*x}return z};
+const rsDiv=n=>{const r=Array(n).fill(0);r[n-1]=1;let t=1;for(let i=0;i<n;i++){for(let j=0;j<n;j++){r[j]=mul(r[j],t);if(j+1<n)r[j]^=r[j+1]}t=mul(t,2)}return r};
+const rsRem=(d,v)=>{const r=v.map(()=>0);d.forEach(b=>{const f=b^r.shift();r.push(0);v.forEach((c,i)=>r[i]^=mul(c,f))});return r};
+const raw=v=>{let r=(16*v+128)*v+64;if(v>=2){const a=Math.floor(v/7)+2;r-=(25*a-10)*a-55;if(v>=7)r-=36}return r};
+const dataCw=v=>Math.floor(raw(v)/8)-ECC[v-1]*NB[v-1];
+return function(text){
+  const u=new TextEncoder().encode(text);let ver=1;
+  while(ver<=10&&dataCw(ver)<u.length+(ver<=9?2:3))ver++;
+  if(ver>10)throw new Error('Mã quá dài để tạo QR (tối đa 210 ký tự).');
+  const bits=[],put=(v,n)=>{for(let i=n-1;i>=0;i--)bits.push((v>>>i)&1)};
+  put(4,4);put(u.length,ver<=9?8:16);u.forEach(b=>put(b,8));
+  const cap=dataCw(ver)*8;put(0,Math.min(4,cap-bits.length));while(bits.length%8)bits.push(0);
+  const data=[];for(let i=0;i<bits.length;i+=8)data.push(parseInt(bits.slice(i,i+8).join(''),2));
+  for(let p=0xEC;data.length<dataCw(ver);p^=0xEC^0x11)data.push(p);
+  const nb=NB[ver-1],el=ECC[ver-1],rc=Math.floor(raw(ver)/8),ns=nb-rc%nb,sl=Math.floor(rc/nb),dv=rsDiv(el),blocks=[];
+  for(let i=0,k=0;i<nb;i++){const d=data.slice(k,k+sl-el+(i<ns?0:1));k+=d.length;const e=rsRem(d,dv);if(i<ns)d.push(0);blocks.push(d.concat(e))}
+  const cw=[];for(let i=0;i<blocks[0].length;i++)blocks.forEach((b,j)=>{if(i!==sl-el||j>=ns)cw.push(b[i])});
+  const N=ver*4+17,M=Array.from({length:N},()=>Array(N).fill(false)),F=Array.from({length:N},()=>Array(N).fill(false));
+  const sf=(x,y,d)=>{M[y][x]=d;F[y][x]=true};
+  for(let i=0;i<N;i++){sf(6,i,i%2===0);sf(i,6,i%2===0)}
+  const fin=(x,y)=>{for(let dy=-4;dy<=4;dy++)for(let dx=-4;dx<=4;dx++){const d=Math.max(Math.abs(dx),Math.abs(dy)),xx=x+dx,yy=y+dy;if(xx>=0&&xx<N&&yy>=0&&yy<N)sf(xx,yy,d!==2&&d!==4)}};
+  fin(3,3);fin(N-4,3);fin(3,N-4);
+  const na=ver>1?Math.floor(ver/7)+2:0,ap=[];
+  if(na){const st=Math.ceil((ver*4+4)/(na*2-2))*2;ap.push(6);for(let p=N-7;ap.length<na;p-=st)ap.splice(1,0,p)}
+  ap.forEach((cx,i)=>ap.forEach((cy,j)=>{if((i===0&&j===0)||(i===0&&j===na-1)||(i===na-1&&j===0))return;for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++)sf(cx+dx,cy+dy,Math.max(Math.abs(dx),Math.abs(dy))!==1)}));
+  const fmt=m=>{const d=(0<<3)|m;let r=d;for(let i=0;i<10;i++)r=(r<<1)^((r>>>9)*0x537);const b=((d<<10)|r)^0x5412,g=i=>((b>>>i)&1)!==0;
+    for(let i=0;i<=5;i++)sf(8,i,g(i));sf(8,7,g(6));sf(8,8,g(7));sf(7,8,g(8));for(let i=9;i<15;i++)sf(14-i,8,g(i));
+    for(let i=0;i<8;i++)sf(N-1-i,8,g(i));for(let i=8;i<15;i++)sf(8,N-15+i,g(i));sf(8,N-8,true)};
+  fmt(0);
+  if(ver>=7){let r=ver;for(let i=0;i<12;i++)r=(r<<1)^((r>>>11)*0x1F25);const b=(ver<<12)|r;for(let i=0;i<18;i++){const d=((b>>>i)&1)!==0,a=N-11+i%3,c=Math.floor(i/3);sf(a,c,d);sf(c,a,d)}}
+  for(let i=0,r=N-1;r>=1;r-=2){if(r===6)r=5;for(let v=0;v<N;v++)for(let j=0;j<2;j++){const x=r-j,y=((r+1)&2)===0?N-1-v:v;if(!F[y][x]&&i<cw.length*8){M[y][x]=((cw[i>>>3]>>>(7-(i&7)))&1)!==0;i++}}}
+  const MK=[(x,y)=>(x+y)%2===0,(x,y)=>y%2===0,(x,y)=>x%3===0,(x,y)=>(x+y)%3===0,(x,y)=>(Math.floor(x/3)+Math.floor(y/2))%2===0,(x,y)=>x*y%2+x*y%3===0,(x,y)=>(x*y%2+x*y%3)%2===0,(x,y)=>((x+y)%2+x*y%3)%2===0];
+  const ap2=m=>{for(let y=0;y<N;y++)for(let x=0;x<N;x++)if(!F[y][x]&&MK[m](x,y))M[y][x]=!M[y][x]};
+  const pen=()=>{let s=0;for(let t=0;t<2;t++){for(let a=0;a<N;a++){let run=1;for(let b=1;b<N;b++){const c=t?M[b][a]:M[a][b],p=t?M[b-1][a]:M[a][b-1];if(c===p){run++;if(run===5)s+=3;else if(run>5)s++}else run=1}}}
+    for(let y=0;y<N-1;y++)for(let x=0;x<N-1;x++){const c=M[y][x];if(c===M[y][x+1]&&c===M[y+1][x]&&c===M[y+1][x+1])s+=3}
+    let d=0;M.forEach(r=>r.forEach(c=>{if(c)d++}));s+=Math.floor(Math.abs(d*20-N*N*10)/(N*N))*10;return s};
+  let best=0,bs=1e9;for(let m=0;m<8;m++){ap2(m);fmt(m);const p=pen();if(p<bs){bs=p;best=m}ap2(m)}
+  ap2(best);fmt(best);return M;
+}})();
+const qrSvg=(text,cls)=>{const M=QRG(text),n=M.length,q=4;let d='';M.forEach((r,y)=>{for(let x=0;x<n;x++){if(!r[x])continue;let e=x;while(e<n&&r[e])e++;d+=`M${x+q} ${y+q}h${e-x}v1h-${e-x}z`;x=e}});
+  return `<svg class="${cls||''}" viewBox="0 0 ${n+2*q} ${n+2*q}" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg"><path d="${d}"/></svg>`};
+/* ---- Mã vạch Code 128 (đọc được bằng mọi súng quét và camera) ---- */
+const C128="212222 222122 222221 121223 121322 131222 122213 122312 132212 221213 221312 231212 112232 122132 122231 113222 123122 123221 223211 221132 221231 213212 223112 312131 311222 321122 321221 312212 322112 322211 212123 212321 232121 111323 131123 131321 112313 132113 132311 211313 231113 231311 112133 112331 132131 113123 113321 133121 313121 211331 231131 213113 213311 213131 311123 311321 331121 312113 312311 332111 314111 221411 431111 111224 111422 121124 121421 141122 141221 112214 112412 122114 122411 142112 142211 241211 221114 413111 241112 134111 111242 121142 121241 114212 124112 124211 411212 421112 421211 212141 214121 412121 111143 111341 131141 114113 114311 411113 411311 113141 114131 311141 411131 211412 211214 211232 2331112".split(' ');
+const asc=s=>String(s==null?'':s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').replace(/Đ/g,'D').replace(/[^\x20-\x7e]/g,'');
+const bcSvg=(text,cls)=>{const t=asc(text)||'0',sy=[104];let sum=104;[...t].forEach((c,i)=>{const v=c.charCodeAt(0)-32;sy.push(v);sum+=v*(i+1)});sy.push(sum%103,106);
+  let x=10,d='';sy.forEach(s=>{[...C128[s]].forEach((w,i)=>{w=+w;if(i%2===0)d+=`M${x} 0h${w}v1h-${w}z`;x+=w})});const W=x+10;
+  return `<svg class="${cls||''}" viewBox="0 0 ${W} 1" preserveAspectRatio="none" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg"><path d="${d}"/></svg>`};
+const ean13=b12=>{let s=0;[...b12].forEach((c,i)=>s+=+c*(i%2?3:1));return b12+(10-s%10)%10};
+const genCode=()=>{let c;do{c=ean13('2'+String(Date.now()).slice(-8)+String(Math.floor(Math.random()*1000)).padStart(3,'0'))}while(db.products.some(p=>p.barcode===c));return c};
+const pcode=p=>p.barcode||p.code||'';
+const findCode=s=>{const k=asc(s).trim().toLowerCase();if(!k)return null;return db.products.find(p=>[p.barcode,p.code].some(c=>c&&asc(c).toLowerCase()===k))||null};
+
+/* ---- Ảnh sản phẩm: nén nhỏ nhất có thể, lưu riêng khỏi dữ liệu chính ---- */
+let IMG={},pImg;
+const idbReq=r=>new Promise((ok,no)=>{r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)});
+const IRG=()=>IDBKeyRange.bound('img:','img:\uffff');
+async function idbFix(){ /* máy đã dùng bản trước (DB v2): đưa về v1 để quay lại phần mềm cũ không lỗi */
+  if(idb.version<=1)return;
+  const rd=async n=>{if(!idb.objectStoreNames.contains(n))return[[],[]];const s=idb.transaction(n).objectStore(n);return[await idbReq(s.getAllKeys()),await idbReq(s.getAll())]};
+  const [kk,kv]=await rd('kv'),[ik,iv]=await rd('img');
+  const open=(name,ver,up)=>new Promise((ok,no)=>{const r=ver?indexedDB.open(name,ver):indexedDB.open(name);r.onupgradeneeded=()=>up&&up(r.result);r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)});
+  const put=async(d,pairs)=>{const tx=d.transaction('kv','readwrite'),s=tx.objectStore('kv');pairs.forEach(([k,v])=>s.put(v,k));await new Promise((ok,no)=>{tx.oncomplete=ok;tx.onerror=()=>no(tx.error)})};
+  const all=[...kk.map((k,i)=>[k,kv[i]]),...ik.map((k,i)=>['img:'+k,iv[i]])];
+  const dropDb=n=>new Promise(ok=>{const r=indexedDB.deleteDatabase(n);r.onsuccess=ok;r.onerror=ok;r.onblocked=()=>ok('blocked')});
+  await dropDb('ban_hang_tmp');const tmp=await open('ban_hang_tmp',1,d=>d.createObjectStore('kv'));await put(tmp,all);
+  if((await idbReq(tmp.transaction('kv').objectStore('kv').getAllKeys())).length!==all.length){tmp.close();throw new Error('copy')}
+  const old=idb;old.close();
+  if(await dropDb('ban_hang_db')==='blocked'){idb=await open('ban_hang_db');tmp.close();return}
+  const nu=await open('ban_hang_db',1,d=>d.createObjectStore('kv'));await put(nu,all);
+  if((await idbReq(nu.transaction('kv').objectStore('kv').getAllKeys())).length===all.length){idb=nu;tmp.close();await dropDb('ban_hang_tmp')}
+  else{idb=nu;tmp.close()}
+}
+async function imgLoad(){try{await idbFix()}catch(e){try{if(!idb||idb.version===undefined)idb=await idbOpen()}catch(x){}}
+  try{const s=idb.transaction('kv').objectStore('kv'),[k,v]=await Promise.all([idbReq(s.getAllKeys(IRG())),idbReq(s.getAll(IRG()))]);k.forEach((id,i)=>IMG[id.slice(4)]=v[i])}catch(e){}}
+let imgSeq=0;const imgMark=()=>{imgSeq++;try{localStorage.setItem('bh_idirty','1')}catch(e){}};
+function imgSet0(id,u){IMG[id]=u;try{idb.transaction('kv','readwrite').objectStore('kv').put(u,'img:'+id)}catch(e){}}
+function imgDel0(id){delete IMG[id];try{idb.transaction('kv','readwrite').objectStore('kv').delete('img:'+id)}catch(e){}}
+function imgPut(id,u){imgSet0(id,u);imgMark()}
+function imgDel(id){imgDel0(id);imgMark()}
+function imgReplace(m){imgMark();IMG={};try{const s=idb.transaction('kv','readwrite').objectStore('kv');s.delete(IRG());Object.keys(m||{}).forEach(id=>{IMG[id]=m[id];s.put(m[id],'img:'+id)})}catch(e){}}
+const bkJson=async()=>JSON.stringify(Object.assign({},db,{_img:IMG}));
+const imgKB=u=>Math.max(1,Math.round(u.length*.75/1024));
+const imgFit=f=>new Promise((ok,no)=>{const url=URL.createObjectURL(f),im=new Image();
+  im.onload=()=>{URL.revokeObjectURL(url);const c=document.createElement('canvas'),x=c.getContext('2d');let out='';
+    for(const S of [360,300,240,200]){const k=Math.min(1,S/Math.max(im.width,im.height));c.width=Math.max(1,Math.round(im.width*k));c.height=Math.max(1,Math.round(im.height*k));x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.drawImage(im,0,0,c.width,c.height);
+      for(const q of [.6,.5,.4,.3]){out=c.toDataURL('image/webp',q);if(out.indexOf('data:image/webp')!==0)out=c.toDataURL('image/jpeg',q);if(out.length*.75<=12000)return ok(out)}}
+    ok(out)};
+  im.onerror=()=>{URL.revokeObjectURL(url);no(new Error('Không đọc được file ảnh này.'))};im.src=url});
+const ik=p=>p.im==='-'?null:(p.im||p.id),imgKey=id=>{const p=prod(id);return p?ik(p):id};
+const sharers=p=>{const k=ik(p);return k?db.products.filter(x=>x.id!==p.id&&ik(x)===k).length:0};
+function imgGc(){const used=new Set(db.products.map(ik).filter(Boolean));Object.keys(IMG).forEach(k=>{if(!used.has(k))imgDel(k)})}
+const th=(id,z)=>{const k=imgKey(id);return k&&IMG[k]?`<img class="th" src="${IMG[k]}" ${z===false?'':`data-zoom="${id}"`} alt="" loading="lazy">`:''};
+
+/* ---- Quét mã bằng camera ---- */
+let scX=null;
+function scanClose(){if(!scX)return;const s=scX;scX=null;clearInterval(s.t);try{s.zr&&s.zr.reset()}catch(e){}try{s.stream&&s.stream.getTracks().forEach(t=>t.stop())}catch(e){}s.el.remove()}
+const beep=()=>{try{const a=new (window.AudioContext||window.webkitAudioContext)(),o=a.createOscillator();o.frequency.value=1100;o.connect(a.destination);o.start();setTimeout(()=>{o.stop();a.close()},110)}catch(e){}};
+async function scanOpen(title,onCode,multi){
+  scanClose();
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)return alert('Trình duyệt này không mở được camera. Cần mở phần mềm bằng địa chỉ https:// (hoặc localhost) và cấp quyền camera.');
+  const el=document.createElement('div');el.className='scx';
+  el.innerHTML=`<div class="scb"><b>${esc(title)}</b><button class="ghost" data-scx>${multi?'Xong':'Đóng'}</button></div><video playsinline muted></video><div class="scf"></div><div class="scs" id="scs">Đưa mã vạch / QR vào khung</div>`;
+  document.body.appendChild(el);const v=el.querySelector('video'),st=el.querySelector('#scs');scX={el};let last='',lt=0;
+  const hit=async raw=>{const now=Date.now();if(!raw||(raw===last&&now-lt<2200))return;last=raw;lt=now;const r=await onCode(raw);beep();st.textContent=r||('Đã quét: '+raw);if(!multi)scanClose()};
+  try{
+    if(window.BarcodeDetector){
+      const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280}},audio:false});scX.stream=stream;v.srcObject=stream;await v.play();
+      const fm=['qr_code','code_128','ean_13','ean_8','upc_a','upc_e','code_39','itf'],sup=await BarcodeDetector.getSupportedFormats().catch(()=>fm),det=new BarcodeDetector({formats:fm.filter(f=>sup.includes(f))});
+      let busy=false;scX.t=setInterval(async()=>{if(busy||!scX)return;busy=true;try{const r=await det.detect(v);if(r&&r[0])await hit(r[0].rawValue)}catch(e){}busy=false},180);
+    }else{
+      st.textContent='Đang tải bộ đọc mã (cần Internet lần đầu)…';
+      if(!window.ZXing)await new Promise((ok,no)=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js';s.onload=ok;s.onerror=()=>no(new Error('Trình duyệt chưa hỗ trợ quét mã và không tải được bộ đọc dự phòng. Hãy dùng Chrome trên Android, hoặc kết nối Internet.'));document.head.appendChild(s)});
+      if(!scX)return;const zr=new ZXing.BrowserMultiFormatReader();scX.zr=zr;st.textContent='Đưa mã vạch / QR vào khung';
+      zr.decodeFromVideoDevice(undefined,v,r=>{if(r)hit(r.getText())}).catch(e=>{scanClose();alert('Không mở được camera: '+(e.message||e))});
+    }
+  }catch(e){scanClose();alert(e.name==='NotAllowedError'?'Chưa cấp quyền camera cho trang này.':(e.message||'Không mở được camera.'))}
+}
+const scanSell=()=>scanOpen('Quét mã để thêm vào hóa đơn',raw=>{const p=findCode(raw);if(!p)return 'Không có sản phẩm mã: '+raw;if(p.status==='off')return p.name+' đã ngừng bán';add(p.id);return 'Đã thêm: '+p.name},true);
+
+/* ---- In tem mã ---- */
+const LBS={'50x30':[50,30],'40x25':[40,25],'70x40':[70,40],'60x40':[60,40]};
+let lbX={};
+function labelDlg(ids){
+  const old=document.querySelector('.dbm');if(old)old.remove();lbX={};(ids||[]).forEach(i=>lbX[i]=1);
+  const el=document.createElement('div');el.className='dbm lbm';
+  el.innerHTML=`<div class="dbs" role="dialog" style="max-width:640px"><div class="dbh"><div class="dbt1">In tem mã vạch / QR</div><button type="button" class="ghost pcl" data-lbx>✕</button></div>
+  <div class="dbb"><div class="pfg"><label>Loại mã<select id="lk"><option value="both">Mã vạch + QR</option><option value="bc">Chỉ mã vạch</option><option value="qr">Chỉ QR</option></select></label>
+  <label>Khổ tem<select id="ls"><option value="50x30">Cuộn 50×30 mm</option><option value="40x25">Cuộn 40×25 mm</option><option value="60x40">Cuộn 60×40 mm</option><option value="70x40">Cuộn 70×40 mm</option><option value="a4">Giấy A4 (tem 50×30, tự xuống dòng)</option></select></label>
+  <label class="chk f2" style="margin:0"><input type="checkbox" id="lp" checked>In giá bán lẻ trên tem</label></div>
+  <input id="lq" type="search" placeholder="Tìm sản phẩm cần in tem…" autocomplete="off" style="margin-bottom:8px"><div id="ll" style="max-height:40vh;overflow:auto"></div>
+  <small id="lsum"></small></div><div class="dbf"><button type="button" class="ghost" data-lbx>Hủy</button><button type="button" class="pri" data-lbgo>In tem</button></div></div>`;
+  document.body.appendChild(el);const q=el.querySelector('#lq');q.oninput=lbList;lbList();
+  el.querySelector('#ll').oninput=e=>{const i=e.target.dataset.lq;if(i){lbX[i]=Math.max(0,Math.floor(+e.target.value||0));lbSum()}};
+}
+function lbList(){const k=nz(document.querySelector('#lq').value),sel=Object.keys(lbX).filter(i=>lbX[i]>0),L=db.products.filter(p=>sel.includes(p.id)||(!k?false:nz(ptext(p)).includes(k))).slice(0,60);
+  document.querySelector('#ll').innerHTML=L.map(p=>`<div class="lbr">${th(p.id,false)||'<span class="th ph"></span>'}<div style="flex:1;min-width:0"><b>${esc(p.name)}</b><br><small>${esc(pcode(p)||'Chưa có mã, sẽ tự tạo khi in')}</small></div><input type="number" min="0" data-lq="${p.id}" value="${lbX[p.id]||0}" style="width:70px"></div>`).join('')||`<div class="empty">Gõ tên hoặc mã sản phẩm để chọn. Nhập số tem cần in cho từng sản phẩm.</div>`;lbSum()}
+function lbSum(){const n=Object.values(lbX).reduce((a,b)=>a+b,0);document.querySelector('#lsum').textContent=n?`Sẽ in ${n} tem.`:'Chưa chọn sản phẩm nào.'}
+function labelPrint(){
+  const kind=$('#lk').value,sz=$('#ls').value,pr=$('#lp').checked,a4=sz==='a4',[W,H]=a4?LBS['50x30']:LBS[sz],list=[];
+  Object.keys(lbX).forEach(id=>{const p=prod(id);if(!p||!(lbX[id]>0))return;if(!pcode(p)){p.barcode=genCode()}for(let i=0;i<lbX[id];i++)list.push(p)});
+  if(!list.length)return alert('Chưa chọn sản phẩm nào để in.');save();
+  const fs=H<=25?5.5:7,qh=Math.min(H*.5,16),cache={};
+  const lab=p=>{const c=pcode(p);const b=cache['b'+c]||(cache['b'+c]=bcSvg(c,'lb')),q=cache['q'+c]||(cache['q'+c]=qrSvg(c,'lq'));
+    return `<div class="l"><div class="n">${esc(p.name)}</div><div class="r">${kind!=='qr'?b:''}${kind!=='bc'?q:''}</div><div class="c">${esc(asc(c))}</div>${pr?`<div class="p">${money(p.price)}/${esc(p.unit)}</div>`:''}</div>`};
+  const css=`@page{size:${a4?'A4':W+'mm '+H+'mm'};margin:${a4?'8mm':'0'}}*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif}.l{width:${W}mm;height:${H}mm;padding:1.2mm;overflow:hidden;display:${a4?'inline-flex':'flex'};flex-direction:column;justify-content:space-between;vertical-align:top;${a4?'border:.2mm dashed #bbb;':'page-break-after:always;'}}.n{font-size:${fs}pt;font-weight:700;line-height:1.1;max-height:${fs*2.3}pt;overflow:hidden}.r{display:flex;align-items:center;justify-content:center;gap:1.5mm;height:${qh}mm}.lb{flex:1;height:100%;min-width:0}.lq{height:100%;width:auto}.c{font-size:${fs}pt;text-align:center;font-family:monospace}.p{font-size:${fs+2}pt;font-weight:700;text-align:center}path{fill:#000}`;
+  const f=document.createElement('iframe');f.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0';document.body.appendChild(f);
+  const d=f.contentWindow.document;d.open();d.write(`<!doctype html><meta charset="utf-8"><style>${css}</style>${list.map(lab).join('')}`);d.close();
+  setTimeout(()=>{f.contentWindow.focus();f.contentWindow.print();setTimeout(()=>f.remove(),60000)},400);
+  document.querySelector('.lbm').remove();if(tab==='products')drawPL();
+}
+
+/* ---- Gắn vào giao diện hiện có ---- */
+{const s=document.createElement('style');s.textContent=`
+.th{width:44px;height:44px;object-fit:cover;border-radius:6px;border:1px solid var(--line);flex:none;background:#f3f5f7;cursor:zoom-in}.th.ph{display:inline-block;cursor:default}
+.ri>.nmx{display:flex;align-items:center;gap:8px;min-width:0}.lt .nm>.th{float:left;margin-right:8px;width:48px;height:48px}.pc .ivr2:first-child>.th{width:56px;height:56px}.pc .ivr2:first-child .ivl2{flex:1}
+.pim{display:flex;gap:12px;align-items:center;margin-bottom:14px}.pim .pv{width:96px;height:96px;border-radius:12px;border:1px dashed var(--line);background:#f3f5f7;display:flex;align-items:center;justify-content:center;overflow:hidden;color:var(--mute);font-size:12px;text-align:center;flex:none}.pim .pv img{width:100%;height:100%;object-fit:cover}.pim .bt{display:flex;flex-direction:column;gap:6px;align-items:flex-start}.pim .bt button,.pim .bt label{margin:0;padding:8px 12px;min-height:38px;display:inline-flex;align-items:center;cursor:pointer;color:var(--ac)}
+.bcx{display:flex;gap:6px;margin-top:6px}.bcx button{margin:0;padding:6px 10px;min-height:34px;font-size:13px}
+.scx{position:fixed;inset:0;z-index:400;background:#000;display:flex;flex-direction:column}.scx video{flex:1;min-height:0;width:100%;object-fit:cover}.scb{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;color:#fff;background:rgba(0,0,0,.6)}.scf{position:absolute;left:12%;right:12%;top:30%;height:26%;border:3px solid #2dd4bf;border-radius:14px;pointer-events:none}.scs{padding:14px 16px;color:#fff;background:rgba(0,0,0,.7);text-align:center;font-weight:600}
+.zm{position:fixed;inset:0;z-index:350;background:rgba(0,0,0,.78);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:16px;color:#fff;font-weight:600;text-align:center}.zm img{width:min(92vw,520px);height:auto;max-height:70vh;object-fit:contain;border-radius:12px;background:#fff;image-rendering:auto}
+.lbr{display:flex;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid var(--line)}.sbtn{flex:none;margin:0!important;min-height:40px;padding:0 14px!important}`;document.head.appendChild(s)}
+/* nhãn nhỏ cho ô kết quả tìm kiếm: gói tên + ảnh */
+{const _sr=showRes;showRes=function(){_sr();document.querySelectorAll('#res .ri[data-r]').forEach(r=>{const id=r.dataset.r,d=r.children[1];if(d&&!d.classList.contains('nmx')){d.classList.add('nmx');d.innerHTML=th(id,false)+'<div style="min-width:0">'+d.innerHTML+'</div>'}})}}
+{const _dl=drawLines;drawLines=function(){_dl();document.querySelectorAll('#lines .lt tr').forEach(tr=>{const e=tr.querySelector('[data-q]'),nm=tr.querySelector('.nm');if(!e||!nm||nm.querySelector('.th'))return;const L=O().lines.find(x=>lid(x)===e.dataset.q);if(L&&IMG[imgKey(L.id)])nm.insertAdjacentHTML('afterbegin',th(L.id))})}}
+{const _dp=drawPL;drawPL=function(){_dp();document.querySelectorAll('#plist .pc').forEach(c=>{const b=c.querySelector('[data-edit]'),r=c.querySelector('.ivr2');if(b&&r&&IMG[imgKey(b.dataset.edit)])r.insertAdjacentHTML('afterbegin',th(b.dataset.edit))})}}
+{const _s=sell;sell=function(){_s();const sw=document.querySelector('.sb .sw');if(sw&&!$('#scbtn'))sw.insertAdjacentHTML('afterend','<button type="button" class="ghost sbtn" id="scbtn" data-scansell title="Quét mã bằng camera">📷 Quét</button>')}}
+{const _p=products;products=function(){_p();const b=document.querySelector('.pbar'),s=document.querySelector('.psb');if(b&&!b.querySelector('[data-lbl]'))b.insertAdjacentHTML('beforeend','<button class="ghost" data-lbl="">In tem</button>');if(s)s.insertAdjacentHTML('beforeend','<button type="button" class="ghost sbtn" data-scanfind title="Quét mã để tìm sản phẩm">📷</button>')}}
+{const _m=pMenu;pMenu=function(btn,id){_m(btn,id);const m=$('#pmenu'),d=m&&m.querySelector('.dg');if(m&&m.dataset.id===id&&d)d.insertAdjacentHTML('beforebegin',`<button data-lbl="${id}">In tem mã</button>`)}}
+{const _d=delProd;delProd=function(id){_d(id);if(!prod(id))imgGc()}}
+let pShare,pAll=false;
+function pimDraw(){
+  const e=editing?prod(editing):null,pv=$('#pv');if(!pv)return;let u;
+  if(pImg)u=pImg;else if(pImg===null||pShare==='-')u=null;else if(pShare)u=IMG[pShare];else u=e?IMG[imgKey(e.id)]:null;
+  pv.innerHTML=u?`<img src="${u}">`:'Chưa có ảnh';
+  const n=e?sharers(e):0,sh=pShare&&pShare!=='-'?db.products.find(x=>ik(x)===pShare&&x!==e):null;let t;
+  if(pImg)t='Ảnh mới ~'+imgKB(pImg)+' KB (lưu khi bấm Lưu)';
+  else if(pImg===null||pShare==='-')t='Sản phẩm sẽ không có ảnh khi lưu';
+  else if(pShare)t='Dùng chung ảnh với "'+(sh?sh.name:'sản phẩm khác')+'", không tốn thêm dung lượng';
+  else if(u)t='Ảnh hiện tại ~'+imgKB(u)+' KB'+(n?'. Đang dùng chung với '+n+' sản phẩm khác':'');
+  else t='Ảnh tự thu nhỏ còn khoảng 10 KB. Nhiều sản phẩm giống nhau có thể dùng chung 1 ảnh.';
+  $('#pimi').textContent=t;document.querySelector('[data-pimdel]').hidden=!u;
+  const w=$('#pallw');if(w)w.hidden=!(e&&n>0&&pShare===undefined)}
+function ipkOpen(){const el=document.createElement('div');el.className='dbm ipk';
+  el.innerHTML=`<div class="dbs" role="dialog" style="max-width:520px"><div class="dbh"><div class="dbt1">Chọn sản phẩm có ảnh để dùng chung</div><button type="button" class="ghost pcl" data-ipkx>✕</button></div><div class="dbb"><input id="ipq" type="search" placeholder="Gõ tên hoặc mã sản phẩm…" autocomplete="off" style="margin-bottom:8px"><div id="ipl" style="max-height:50vh;overflow:auto"></div></div></div>`;
+  document.body.appendChild(el);const q=el.querySelector('#ipq');q.oninput=ipkList;ipkList();q.focus()}
+function ipkList(){const k=nz($('#ipq').value),seen=new Set(),L=[];
+  db.products.forEach(p=>{const key=ik(p);if(!key||!IMG[key]||(editing&&p.id===editing))return;if(k){if(!nz(ptext(p)).includes(k))return}else{if(seen.has(key))return;seen.add(key)}L.push(p)});
+  $('#ipl').innerHTML=L.slice(0,60).map(p=>`<div class="lbr" data-pickimg="${ik(p)}" style="cursor:pointer">${th(p.id,false)}<div style="flex:1;min-width:0"><b>${esc(p.name)}</b><br><small>${esc(pcode(p))}${sharers(p)?' · '+(sharers(p)+1)+' sản phẩm dùng chung':''}</small></div></div>`).join('')||'<div class="empty">Chưa có sản phẩm nào có ảnh.</div>'}
+{const _o=openProdForm;openProdForm=function(){pImg=undefined;pShare=undefined;pAll=false;_o();const b=document.querySelector('.pfm .dbb');if(!b)return;
+  const e=editing?prod(editing):null,cs=!e&&cloneFrom?prod(cloneFrom):null;if(cs&&ik(cs)&&IMG[ik(cs)])pShare=ik(cs);
+  b.insertAdjacentHTML('afterbegin',`<div class="pim"><div class="pv" id="pv"></div><div class="bt"><label class="ghost" style="border-radius:6px;border:1px solid var(--ac);font-weight:600">📷 Chụp / chọn ảnh<input type="file" id="pimf" accept="image/*" hidden></label><button type="button" class="ghost" data-pimpick>🖼 Dùng ảnh của sản phẩm khác</button><button type="button" class="ghost danger" data-pimdel>Xóa ảnh</button><label id="pallw" class="chk" hidden style="margin:0;padding:0;min-height:0;font-size:13px;color:inherit;display:flex;gap:6px;align-items:center"><input type="checkbox" id="pall">Thay / xóa ảnh cho tất cả sản phẩm dùng chung</label><small id="pimi"></small></div></div>`);
+  $('#pimf').onchange=async ev=>{const f=ev.target.files[0];ev.target.value='';if(!f)return;try{pImg=await imgFit(f);pShare=undefined;pimDraw()}catch(x){alert(x.message)}};
+  $('#pall').onchange=ev=>{pAll=ev.target.checked};
+  const bc=$('#pbc');if(bc)bc.closest('label').insertAdjacentHTML('beforeend','<div class="bcx"><button type="button" class="ghost" data-bcgen>Tự tạo mã</button><button type="button" class="ghost" data-bcscan>📷 Quét</button></div>');
+  pimDraw()}}
+{const _sp=saveProd;saveProd=function(n){const eid=editing,before=db.products.length,pi=pImg,ps=pShare,pa=pAll;_sp(n);const ok=eid?editing!==eid:db.products.length>before;if(!ok||(pi===undefined&&ps===undefined))return;
+  const p=eid?prod(eid):db.products[db.products.length-1];if(!p)return;const setIm=v=>{if(v)p.im=v;else if('im' in p)p.im=''};
+  if(ps!==undefined){if(!(ps==='-'&&!eid))setIm(ps==='-'?'-':(ps===p.id?'':ps))}
+  else{const k=ik(p),others=k?sharers(p):0;
+    if(typeof pi==='string'){if(k&&others&&!pa){const nk=uid();setIm(nk);imgPut(nk,pi)}else{if(p.im==='-')setIm('');imgPut(ik(p)||p.id,pi)}}
+    else if(pi===null){if(others&&!pa)setIm('-');else if(k)imgDel(k)}}
+  imgGc();save();if($('#plist'))drawPL();
+  if(document.querySelector('.pfm')&&!editing&&cloneFrom){const c2=prod(cloneFrom);if(c2&&ik(c2)&&IMG[ik(c2)]&&pImg===undefined){pShare=ik(c2);pimDraw()}} /* form sao chép tiếp theo đã mở trước khi ảnh kịp gắn */}}
+{const _v=setView;setView=function(){_v();const b=document.querySelector('[data-backup]'),n=Object.keys(IMG).length,kb=Object.values(IMG).reduce((a,u)=>a+u.length*.75/1024,0);
+  if(b&&!document.querySelector('[data-bknoimg]'))b.insertAdjacentHTML('afterend','<button class="ghost" data-bknoimg>Sao lưu (không kèm ảnh)</button>');
+  if(b)b.closest('.card').insertAdjacentHTML('beforeend',`<p><small>Ảnh sản phẩm: ${n} ảnh, khoảng ${Math.round(kb)} KB, lưu riêng trong trình duyệt của máy này. File sao lưu có kèm ảnh. ${gOn()?'Ảnh được đồng bộ qua Google Drive: mỗi ảnh là một file nhỏ khoảng 10 KB, máy chỉ tải những ảnh còn thiếu. Ảnh mới từ máy khác về trong tối đa 5 phút, hoặc ngay khi bấm Đồng bộ ngay.':'Chưa kết nối Google Drive nên ảnh chỉ nằm trên máy này.'}</small></p>`)}}
+document.addEventListener('click',e=>{const t=e.target;
+  if(t.closest('[data-zoom]')){const id=t.closest('[data-zoom]').dataset.zoom,p=prod(id);if(!IMG[imgKey(id)])return;const z=document.createElement('div');z.className='zm';z.innerHTML=`<img src="${IMG[imgKey(id)]}"><div>${esc(p?p.name:'')}</div><small>Bấm để đóng</small>`;z.onclick=()=>z.remove();document.body.appendChild(z);return}
+  if(t.closest('[data-bknoimg]')){db.lastBackup=Date.now();save();dl(`sao-luu-khong-anh-${stamp()}.json`,JSON.stringify(db),'application/json');return}
+  if(t.closest('[data-scx]'))return scanClose();
+  if(t.closest('[data-scansell]'))return scanSell();
+  if(t.closest('[data-scanfind]'))return scanOpen('Quét mã để tìm sản phẩm',raw=>{pSearch=raw;const i=$('#psr');if(i)i.value=raw;pLim=30;drawPL();const p=findCode(raw);return p?'Tìm thấy: '+p.name:'Không có sản phẩm mã: '+raw});
+  if(t.closest('[data-pimdel]')){if(editing){pImg=null;pShare=undefined}else{pImg=undefined;pShare='-'}pimDraw();return}
+  if(t.closest('[data-pimpick]'))return ipkOpen();
+  if(t.closest('[data-ipkx]')){const m=document.querySelector('.ipk');if(m)m.remove();return}
+  if(t.closest('[data-pickimg]')){pShare=t.closest('[data-pickimg]').dataset.pickimg;pImg=undefined;const m=document.querySelector('.ipk');if(m)m.remove();pimDraw();return}
+  if(t.closest('[data-bcgen]')){const i=$('#pbc');if(i.value&&!confirm('Ô barcode đang có mã. Thay bằng mã mới tự tạo?'))return;i.value=genCode();return}
+  if(t.closest('[data-bcscan]'))return scanOpen('Quét mã vạch của sản phẩm',raw=>{const o=findCode(raw);$('#pbc').value=raw;return o&&o.id!==editing?'Cảnh báo: mã này đang thuộc sản phẩm '+o.name:'Đã ghi mã: '+raw});
+  if(t.closest('[data-lbl]')){const id=t.closest('[data-lbl]').dataset.lbl;labelDlg(id?[id]:[]);return}
+  if(t.closest('[data-lbx]')){const m=document.querySelector('.lbm');if(m)m.remove();return}
+  if(t.closest('[data-lbgo]'))return labelPrint();
+},true);
+
+/* ---- Đồng bộ ảnh qua Google Drive: mỗi ảnh một file nhỏ bh_img_<mã sản phẩm> ---- */
+let imgBusy=false,imgMsg='';
+const IMGINT=5*60*1000,imgH=s=>{let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return (h>>>0).toString(36)+s.length.toString(36)};
+const imgFile='bh_img_',IMGDIR='BanHang_HinhAnh';
+async function imgList(){const out=[];let pt='';do{const q=encodeURIComponent(`name contains '${imgFile}' and trashed=false`),r=await gFetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=nextPageToken,files(id,name,appProperties,parents)&pageSize=1000${pt?'&pageToken='+pt:''}`),j=await r.json();out.push(...(j.files||[]));pt=j.nextPageToken||''}while(pt);return out}
+async function imgFolder(){ /* thư mục chứa ảnh; nhiều máy cùng tạo thì mọi máy chọn thư mục cũ nhất */
+  const q=encodeURIComponent("mimeType='application/vnd.google-apps.folder' and name='"+IMGDIR+"' and trashed=false");
+  const j=await (await gFetch(`https://www.googleapis.com/drive/v3/files?q=${q}&orderBy=createdTime&fields=files(id)&pageSize=10`)).json();
+  if(j.files&&j.files[0])return j.files[0].id;
+  const r=await gFetch('https://www.googleapis.com/drive/v3/files?fields=id',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:IMGDIR,mimeType:'application/vnd.google-apps.folder'})});
+  return (await r.json()).id}
+async function imgUp(pid,u,fid,h,par){
+  const mime=u.slice(5,u.indexOf(';')),bin=atob(u.slice(u.indexOf(',')+1)),arr=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);
+  const bd='bhimg'+uid(),pn=(db.products.find(x=>ik(x)===pid)||{}).name||'',meta=JSON.stringify(Object.assign({name:imgFile+pid,mimeType:mime,description:pn,appProperties:{h}},fid?{}:{parents:[par]}));
+  const body=new Blob([`--${bd}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n--${bd}\r\nContent-Type: ${mime}\r\n\r\n`,arr,`\r\n--${bd}--`]);
+  const r=await gFetch(`https://www.googleapis.com/upload/drive/v3/files${fid?'/'+fid:''}?uploadType=multipart&fields=id`,{method:fid?'PATCH':'POST',headers:{'Content-Type':'multipart/related; boundary='+bd},body});
+  return (await r.json()).id}
+async function imgDown(id){const b=await (await gFetch(`https://www.googleapis.com/drive/v3/files/${id}?alt=media`)).blob();
+  let u=await new Promise((ok,no)=>{const f=new FileReader();f.onload=()=>ok(f.result);f.onerror=no;f.readAsDataURL(b)});
+  if(!/^data:image\//.test(u))u='data:image/webp;base64,'+u.slice(u.indexOf(',')+1);return u}
+const pool=async(items,n,fn)=>{let i=0;await Promise.all(Array.from({length:Math.min(n,items.length)},async()=>{while(i<items.length){const x=items[i++];try{await fn(x)}catch(e){if(/Drive 40[13]|Failed to fetch/.test(e.message||''))throw e}}}))};
+async function imgSync(o){
+  if(imgBusy||!idb||!gOn()||!gValid())return;
+  const dirty=localStorage.getItem('bh_idirty')==='1',last=+localStorage.getItem('bh_ilast')||0;
+  if(!dirty&&!(o&&(o.manual||o.interactive))&&Date.now()-last<IMGINT)return;
+  imgBusy=true;const seq=imgSeq;
+  try{
+    const F=await imgFolder(),list=await imgList(),rem={},dups=[];
+    list.forEach(f=>{const p=f.name.slice(imgFile.length);if(!f.name.startsWith(imgFile)||!p)return;if(rem[p])dups.push(f.id);else rem[p]={id:f.id,h:(f.appProperties||{}).h,par:f.parents||[]}});
+    const used=new Set(db.products.map(ik).filter(Boolean)),meta=(await idbGet('imgmeta').catch(()=>null))||{},pids=new Set([...Object.keys(IMG),...Object.keys(rem),...Object.keys(meta)]);
+    const pull=[],push=[],delR=[],delL=[];
+    pids.forEach(p=>{const L=IMG[p],R=rem[p],M=meta[p];
+      if(L&&!used.has(p)){delL.push(p);if(R)delR.push(p);return} /* sản phẩm đã bị xóa (kể cả từ máy cũ): dọn ảnh mồ côi */
+      if(L&&!R){M?delL.push(p):push.push(p)}
+      else if(!L&&R){M?delR.push(p):(used.has(p)&&pull.push(p))}
+      else if(L&&R){const lh=imgH(L);if(lh===R.h)meta[p]={h:lh,id:R.id};else if(M&&M.h===R.h)push.push(p);else if(M&&M.h===lh)pull.push(p);else pull.push(p)}
+      else delete meta[p]});
+    const mvs=Object.keys(rem).filter(p=>!delR.includes(p)&&!(rem[p].par||[]).includes(F)),total=pull.length+push.length+delR.length+delL.length+mvs.length;let done=0;
+    const step=()=>{done++;if(total>20&&done%5===0){imgMsg=`Đang đồng bộ ảnh ${done}/${total}…`;gUI()}};
+    delL.forEach(p=>{imgDel0(p);delete meta[p]});
+    await pool(pull,4,async p=>{const u=await imgDown(rem[p].id);imgSet0(p,u);meta[p]={h:rem[p].h||imgH(u),id:rem[p].id};step()});
+    await pool(push,4,async p=>{const u=IMG[p],h=imgH(u),id=await imgUp(p,u,rem[p]&&rem[p].id,h,F);meta[p]={h,id};step()});
+    await pool(delR,4,async p=>{await gFetch(`https://www.googleapis.com/drive/v3/files/${rem[p].id}`,{method:'DELETE'});delete meta[p];step()});
+    await pool(mvs,4,async p=>{await gFetch(`https://www.googleapis.com/drive/v3/files/${rem[p].id}?addParents=${F}&removeParents=${rem[p].par.join(',')}&fields=id`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:'{}'});step()});
+    await pool(dups,2,async id=>{await gFetch(`https://www.googleapis.com/drive/v3/files/${id}`,{method:'DELETE'})});
+    await idbPut('imgmeta',meta).catch(()=>{});
+    localStorage.setItem('bh_ilast',String(Date.now()));if(seq===imgSeq)localStorage.setItem('bh_idirty','0');
+    imgMsg=total?`Ảnh: đã tải về ${pull.length}, đẩy lên ${push.length}${mvs.length?', gom '+mvs.length+' ảnh vào thư mục '+IMGDIR:''}.`:'';
+    if(pull.length||delL.length){if(tab==='products'&&$('#plist')&&!document.querySelector('.pfm'))drawPL();if(tab==='sell'&&$('#lines'))drawLines()}
+  }catch(e){imgMsg='Ảnh chưa đồng bộ được, sẽ thử lại.'}
+  finally{imgBusy=false;gUI()}
+}
+{const _g=gSync;gSync=function(o){const p=_g(o);p.then(()=>{if(gOn()&&gState==='ok')imgSync(o||{})}).catch(()=>{});return p}}
+{const _t=gStatusText;gStatusText=function(){return _t()+(gOn()&&imgMsg?' '+imgMsg:'')}}
+{const _d=gDisc;gDisc=function(){_d();if(!gOn()){imgMsg='';try{localStorage.removeItem('bh_ilast');idbPut('imgmeta',{})}catch(e){}}}}
+{const _c=gConnect;gConnect=function(){try{localStorage.removeItem('bh_ilast');if(idb)idbPut('imgmeta',{})}catch(e){}return _c()}}
+
 boot();
 if('serviceWorker' in navigator&&location.protocol.indexOf('http')===0)navigator.serviceWorker.register('sw.js').catch(()=>{});
 if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(()=>{});
