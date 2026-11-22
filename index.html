@@ -915,7 +915,7 @@ function printInv(v){
   printDoc({title:'PHIẾU BÁN HÀNG',no:v.no,time:fmtT(v.time),
     parties:[['Khách hàng',esc(v.cname||'Khách lẻ')],ph&&['Điện thoại',esc(ph)],ad&&['Địa chỉ',esc(ad)],v.addr&&['Giao đến',esc(v.addr)],['Thanh toán',MT[v.method]||'Tiền mặt'],v.staff&&['Nhân viên bán',esc(v.staff)],v.edited&&['Đã sửa lúc',fmtT(v.edited)]].filter(Boolean),
     cols:[['Tên hàng, quy cách'],['ĐVT','center','14mm'],['SL','right','16mm'],['Đơn giá','right','24mm'],['Thành tiền','right','28mm']],rows,
-    sums:[['Cộng tiền hàng',money(v.sub)],v.disc&&['Giảm giá','-'+money(v.disc)],v.vat&&['VAT ('+v.vatp+'%)',money(v.vat)],v.fee&&['Phí vận chuyển',money(v.fee)],['TỔNG THANH TOÁN',money(v.total),1],['Khách thanh toán',money(v.paid)],...(v.debt?[v.debtPaid>0&&['Đã thu nợ sau đó',money(v.debtPaid)],v.debtCut>0&&['Trừ nợ do trả hàng',money(v.debtCut)],debtRem(v)>0?['Còn nợ',money(debtRem(v))]:['Tình trạng','Đã thanh toán đủ',1]]:[['Tiền thối',money(v.change)]])].filter(Boolean),
+    sums:[['Cộng tiền hàng',money(v.sub)],v.disc&&['Giảm giá','-'+money(v.disc)],v.vat&&['VAT ('+v.vatp+'%)',money(v.vat)],v.fee&&['Phí vận chuyển',money(v.fee)],['TỔNG THANH TOÁN',money(v.total),1],['Khách thanh toán',money(v.paid)],...(v.debt?[v.debtPaid>0&&['Đã thu nợ sau đó',money(v.debtPaid)],v.debtCut>0&&['Trừ nợ do trả hàng',money(v.debtCut)],debtRem(v)>0?['Còn nợ',money(debtRem(v))]:['ĐÃ THANH TOÁN ĐỦ','✓',1]]:[['Tiền thối',money(v.change)]])].filter(Boolean),
     words:v.total,note:v.note,bank:1,sign:['Khách hàng','Người giao hàng','Người lập phiếu']});
 }
 function printImport(no){
@@ -3243,65 +3243,6 @@ async function imgSync(o){
 {const _t=gStatusText;gStatusText=function(){return _t()+(gOn()&&imgMsg?' '+imgMsg:'')}}
 {const _d=gDisc;gDisc=function(){_d();if(!gOn()){imgMsg='';try{localStorage.removeItem('bh_ilast');idbPut('imgmeta',{})}catch(e){}}}}
 {const _c=gConnect;gConnect=function(){try{localStorage.removeItem('bh_ilast');if(idb)idbPut('imgmeta',{})}catch(e){}return _c()}}
-
-/* ======= KHAI BÁO THUẾ HỘ KINH DOANH (NĐ 68/2026, NĐ 141/2026, TT 18, 50, 89/2026, NĐ 398/2026) ======= */
-const TXI=[['Phân phối, cung cấp hàng hóa (bán buôn, bán lẻ)',1,.5],['Dịch vụ, xây dựng không bao thầu nguyên vật liệu',5,2],['Sản xuất, vận tải, dịch vụ gắn với hàng hóa; xây dựng có bao thầu NVL',3,1.5],['Hoạt động kinh doanh khác',2,1]],TX1=1e9,TX3=3e9,TX10=1e10;
-const txWk=d=>{const w=d.getDay();return new Date(d.getFullYear(),d.getMonth(),d.getDate()+(w===6?2:w===0?1:0))},txD=d=>String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear();
-function txCalc(y,ii){
-  const [,g,t]=TXI[ii],q=[0,0,0,0],inY=x=>new Date(x.time).getFullYear()===y,qi=x=>Math.floor(new Date(x.time).getMonth()/3);
-  live().filter(inY).forEach(v=>q[qi(v)]+=v.total);db.returns.filter(inY).forEach(r=>q[qi(r)]-=r.total);
-  const cum=[],R=q.reduce((a,b,i)=>(cum[i]=a+b),0),over=R>TX1,qx=over?cum.findIndex(c=>c>TX1):-1,red=(y===2026||y===2027)&&R<=TX10;
-  const rows=q.map((v,i)=>{const o={q:i+1,rev:v,due:txWk(new Date(y,i*3+4,0))};if(over&&i>=qx){o.gtgt=Math.round((i===qx?cum[i]:v)*g/100);
-    if(R<=TX3){const a=Math.max(0,cum[i]-TX1)-Math.max(0,(i?cum[i-1]:0)-TX1);o.tncn0=Math.round(a*t/100);o.red=red?Math.round(o.tncn0*.3):0;o.tncn=o.tncn0-o.red}}return o});
-  return{y,g,t,R,over,qx,rows,red,g3:R>TX3,notice:txWk(new Date(y+1,0,31)),qtt:txWk(new Date(y+1,2,31))};
-}
-function txHtml(c,print){
-  const st=c.R<=TX1?`<div class="txk ok"><b>Nhóm doanh thu từ 1 tỷ đồng trở xuống</b><br>Không chịu thuế GTGT, không phải nộp thuế TNCN. Chỉ cần <b>thông báo doanh thu năm ${c.y}</b> bằng <b>Mẫu 01/TKN-CNKD</b> (Thông tư 89/2026/TT-BTC), chậm nhất <b>${txD(c.notice)}</b>.</div>`
-   :`<div class="txk warn"><b>Nhóm doanh thu trên 1 tỷ đồng${c.g3?' (trên 3 tỷ)':''}</b><br>Khai thuế GTGT và TNCN theo quý bằng <b>Mẫu 01/CNKD</b> (Thông tư 50/2026/TT-BTC), từ quý ${c.qx+1} (quý doanh thu lũy kế vượt 1 tỷ). Bắt buộc dùng hóa đơn điện tử.${c.red?' Được giảm 30% thuế TNCN (Nghị định 398/2026/NĐ-CP): kê khai <b>Mẫu số 01</b> kèm Nghị định 398, nộp cùng hồ sơ khai thuế quý.':''}${c.g3?`<br><b>Doanh thu năm vượt 3 tỷ:</b> TNCN phải tính theo thu nhập tính thuế (doanh thu trừ chi phí) và quyết toán bằng <b>Mẫu 02/CNKD-TNCN-QTT</b> chậm nhất ${txD(c.qtt)}, kèm Bảng kê hàng tồn kho <b>01/BK-HTK</b>. Phần mềm chưa tính số TNCN này, hãy làm cùng kế toán hoặc cơ quan thuế.`:`<br>Doanh thu 1 đến 3 tỷ: được chọn tính TNCN theo tỷ lệ % trên doanh thu (bảng dưới) hoặc theo thu nhập tính thuế.`}</div>`;
-  const near=c.R>.9*TX1&&c.R<=TX1?`<div class="txk warn">Doanh thu đã đạt ${Math.round(c.R/TX1*100)}% ngưỡng 1 tỷ, còn ${money(TX1-c.R)}. Vượt ngưỡng sẽ phải khai thuế theo quý và dùng hóa đơn điện tử.</div>`:'';
-  const tb=c.over?`<div class="txs"><table class="txt"><tr><th>Quý</th><th>Doanh thu</th><th>Thuế GTGT ${c.g}%</th><th>TNCN ${c.t}%${c.red?' (sau giảm 30%)':''}</th><th>Hạn nộp</th></tr>${c.rows.map(o=>`<tr><td>Quý ${o.q}</td><td>${money(o.rev)}</td><td>${o.gtgt==null?'—':money(o.gtgt)}</td><td>${o.gtgt==null?'—':o.tncn==null?'—':money(o.tncn)}</td><td>${o.gtgt==null?'':txD(o.due)}</td></tr>`).join('')}</table></div>
-   <small>Doanh thu quý là doanh thu thuần của phần mềm (tổng hóa đơn trừ trả hàng). GTGT quý vượt ngưỡng ước tính trên toàn bộ doanh thu lũy kế từ đầu năm; TNCN trừ 1 tỷ đồng theo lũy kế. Số liệu chỉ để tham khảo và đối chiếu, hãy kiểm tra lại trước khi nộp.</small>`
-   :`<div class="txs"><table class="txt"><tr><th>Quý</th><th>Doanh thu</th></tr>${c.rows.map(o=>`<tr><td>Quý ${o.q}</td><td>${money(o.rev)}</td></tr>`).join('')}</table></div>`;
-  return `<div class="txr"><span>Doanh thu năm ${c.y} (đã trừ trả hàng)</span><b>${money(c.R)}</b></div>${st}${near}${tb}`;
-}
-function txOpen(){
-  const old=document.querySelector('.txm');if(old)old.remove();
-  const y0=new Date().getFullYear(),ys=new Set([y0]);db.invoices.forEach(v=>{const y=new Date(v.time).getFullYear();if(y>=2026)ys.add(y)});
-  const el=document.createElement('div');el.className='dbm txm';
-  el.innerHTML=`<div class="dbs" role="dialog" style="max-width:720px"><div class="dbh"><div class="dbt1">Khai báo thuế hộ kinh doanh</div><button type="button" class="ghost pcl" data-txx>✕</button></div><div class="dbb">
-  <div class="pfg"><label>Năm tính thuế<select id="txy">${[...ys].sort((a,b)=>b-a).map(y=>`<option>${y}</option>`).join('')}</select></label><label>Ngành nghề<select id="txi">${TXI.map((x,i)=>`<option value="${i}">${esc(x[0])}</option>`).join('')}</select></label></div>
-  <div id="txb"></div>
-  <details class="txd"><summary>Căn cứ pháp lý đã đối chiếu</summary><small>Nghị định 68/2026/NĐ-CP (05/03/2026); Nghị định 141/2026/NĐ-CP (29/04/2026, hiệu lực từ 01/01/2026: ngưỡng 1 tỷ đồng); Thông tư 18/2026/TT-BTC; Thông tư 50/2026/TT-BTC (mẫu 01/CNKD); Thông tư 89/2026/TT-BTC (mẫu 01/TKN-CNKD, hiệu lực 01/07/2026); Nghị định 398/2026/NĐ-CP (giảm 30% TNCN năm 2026, 2027 cho doanh thu không quá 10 tỷ). Quy định thay đổi thường xuyên, hãy đối chiếu với cơ quan thuế.</small></details>
-  <small class="txn">Phần mềm tổng hợp số liệu để bạn khai. Hồ sơ chính thức phải nộp qua ứng dụng eTax Mobile hoặc Cổng dịch vụ công ngành Thuế, không nộp trực tiếp từ phần mềm này.</small></div>
-  <div class="dbf"><button type="button" class="ghost" data-txcsv>Tải CSV</button><button type="button" class="pri" data-txprint>In số liệu khai thuế</button></div></div>`;
-  document.body.appendChild(el);const yy=el.querySelector('#txy'),ii=el.querySelector('#txi');ii.value=localStorage.getItem('bh_txi')||'0';
-  const draw=()=>{localStorage.setItem('bh_txi',ii.value);el.querySelector('#txb').innerHTML=txHtml(txCalc(+yy.value,+ii.value))};yy.onchange=ii.onchange=draw;draw();
-}
-function txPrint(){
-  const y=+$('#txy').value,ii=+$('#txi').value,c=txCalc(y,ii);
-  const html=`<!doctype html><meta charset="utf-8"><style>body{font:13px Arial,sans-serif;margin:14mm}h2{margin:0 0 4px}table{border-collapse:collapse;width:100%;margin:8px 0}th,td{border:1px solid #444;padding:5px 7px;text-align:right}th:first-child,td:first-child{text-align:left}.txk{border:1px solid #888;padding:8px;margin:8px 0}small{color:#444}</style>
-  <h2>BẢNG SỐ LIỆU HỖ TRỢ KHAI THUẾ HỘ KINH DOANH NĂM ${y}</h2><div>Người nộp thuế: <b>${esc(db.shop||'')}</b></div><div>Mã số thuế: ${esc(db.shopTax||'................')}</div><div>Địa chỉ: ${esc(db.shopAddr||'................')}</div><div>Ngành nghề: ${esc(TXI[ii][0])}</div>${txHtml(c,1)}
-  <p><small>Bảng này chỉ tổng hợp số liệu từ phần mềm bán hàng để đối chiếu khi khai thuế, không phải tờ khai chính thức. Lập ngày ${txD(new Date())}.</small></p>`;
-  const f=document.createElement('iframe');f.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0';document.body.appendChild(f);const d=f.contentWindow.document;d.open();d.write(html);d.close();setTimeout(()=>{f.contentWindow.focus();f.contentWindow.print();setTimeout(()=>f.remove(),60000)},300);
-}
-function txCsv(){
-  const y=+$('#txy').value,q=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"',inY=x=>new Date(x.time).getFullYear()===y;
-  const rows=[['Loại','Số phiếu','Ngày','Khách hàng','Tổng tiền','Trạng thái']];
-  db.invoices.filter(inY).sort((a,b)=>a.time-b.time).forEach(v=>rows.push(['Hóa đơn',v.no,fmtT(v.time),v.cname||'Khách lẻ',v.total,v.void?'Đã hủy (không tính)':'Tính doanh thu']));
-  db.returns.filter(inY).sort((a,b)=>a.time-b.time).forEach(r=>rows.push(['Trả hàng',r.no,fmtT(r.time),r.cname||'',-r.total,'Trừ doanh thu']));
-  dl(`hoa-don-nam-${y}.csv`,'\ufeff'+rows.map(r=>r.map(q).join(',')).join('\n'),'text/csv');
-}
-{const s=document.createElement('style');s.textContent=`.txr{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;margin:12px 0 8px;border-radius:12px;background:var(--acl,#e6f0ff);font-size:15px}.txr b{font-size:20px}
-.txk{padding:10px 12px;margin:8px 0;border-radius:10px;border:1px solid var(--line);font-size:13.5px;line-height:1.5}.txk.ok{background:#ecfdf3;border-color:#a7e3c0}.txk.warn{background:#fff7e6;border-color:#f3d28b}
-.txs{overflow-x:auto;margin:8px 0}.txt{border-collapse:collapse;width:100%;font-size:13.5px}.txt th,.txt td{padding:7px 9px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}.txt th:first-child,.txt td:first-child{text-align:left}
-.txm small{color:var(--mute);line-height:1.45;display:block;margin-top:6px}.txd{margin-top:10px;font-size:13px}.txd summary{cursor:pointer;font-weight:600}`;document.head.appendChild(s)}
-{const nb=document.querySelector('nav button[data-tab=report]');if(nb)nb.insertAdjacentHTML('afterend','<button type="button" data-taxbtn>Khai thuế</button>')}
-document.addEventListener('click',e=>{const t=e.target;
-  if(t.closest('[data-taxbtn]')){e.stopPropagation();return txOpen()}
-  if(t.closest('[data-txx]')){const m=document.querySelector('.txm');if(m)m.remove();return}
-  if(t.closest('[data-txprint]'))return txPrint();
-  if(t.closest('[data-txcsv]'))return txCsv();
-},true);
 
 boot();
 if('serviceWorker' in navigator&&location.protocol.indexOf('http')===0)navigator.serviceWorker.register('sw.js').catch(()=>{});
