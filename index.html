@@ -562,6 +562,7 @@ button.ks.on{background:var(--acl);border-color:var(--ac)}
 .otabs{overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none}.otabs::-webkit-scrollbar{display:none}.ot{flex:none}
 @media(max-width:700px){.stats{grid-template-columns:1fr 1fr}.stat{padding:10px}.stat b{font-size:18px}.kst .ks b{font-size:16px}}
 </style>
+<style id="pgprint"></style>
 <input type="file" id="file" accept=".json" hidden>
 <input type="file" id="fcsv" accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
 
@@ -2443,7 +2444,7 @@ function vnWords(n){
 const moneyWords=n=>{const w=vnWords(n);return w.charAt(0).toUpperCase()+w.slice(1)+' đồng chẵn.'};
 function printDoc(c){
   const pp=PAPERS[db.paper]||PAPERS.A4,e=esc,foot=e((c.foot||db.shopFoot||'Cảm ơn quý khách!').trim());
-  $('#pgstyle').textContent='@page{'+pp.css+'}';$('#rc').className='doc '+pp.cls;
+  $('#pgprint').textContent='@page{'+pp.css+'}';$('#rc').className='doc '+pp.cls;
   if(pp.cls==='k80'){
     const r=(a,b)=>`<div class="r"><span>${a}</span><span>${b}</span></div>`;
     $('#rc').innerHTML=`<h3>${e(db.shop)}</h3>${db.shopAddr?'<div class="c">'+e(db.shopAddr)+'</div>':''}${db.shopPhone?'<div class="c">ĐT: '+e(db.shopPhone)+'</div>':''}<hr><div class="c"><b>${c.title}</b></div><div class="c">${e(c.no)} - ${c.time}</div>${c.parties.map(([l,v])=>`<div>${l}: ${v}</div>`).join('')}<hr>${c.rows.map(x=>r(x.k[0],x.k[1])).join('')}<hr>${c.sums.map(([l,v,b])=>r(b?'<b>'+l+'</b>':l,b?'<b>'+v+'</b>':v)).join('')}${c.note?'<div>Ghi chú: '+e(c.note)+'</div>':''}<hr><div class="c">${foot}</div>`;
